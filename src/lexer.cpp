@@ -8,7 +8,7 @@ namespace dvel {
 			return std::optional<Spanned<Token>>();
 		}
 
-		size_t start_idx = m_remaining_idx;
+		const size_t start_idx = m_remaining_idx;
 		size_t len = 0;
 
 		while(m_remaining_idx < m_src.length()) {
@@ -30,14 +30,16 @@ namespace dvel {
 			}
 
 			 switch(c) {
-				 case '+':
-				 case '-':
-				 case '=':
-				 case ';':
-				 break;
+				case '+': case '-':
+				case '=': case ';':
+				case '.': case ',':
+				case '{': case '}':
+				case '[': case ']':
+				case '(': case ')':
+				break;
 
-				 default:
-				 throw Diagnostic(std::format("Invalid token `{}`", c), {Diagnostic::Hint("", Span(m_remaining_idx, 1))});
+				default:
+				throw Diagnostic(std::format("Invalid token `{}`", c), {Diagnostic::Hint("", Span(m_remaining_idx, 1))});
 			 }
 
 			 if(len == 0) {
@@ -56,26 +58,50 @@ namespace dvel {
 		return std::optional(Spanned(tok, Span(start_idx, len)));
 	}
 
+	static std::string_view BracketType_to_str(BracketType ty) {
+		switch(ty) {
+			case BracketType::Parenthesis:
+				return "Parenthesis";
+			case BracketType::Square:
+				return "Square";
+			case BracketType::Curly:
+				return "Curly";
+		}
+
+		throw;
+	}
+
+	std::string Token::to_string() const {
+		switch(m_type) {
+			case Type::OpeningBracket:
+				return std::format("OpeningBracket({})", BracketType_to_str(m_data.bracket_type));
+			case Type::ClosingBracket:
+				return std::format("ClosingBracket({})", BracketType_to_str(m_data.bracket_type));
+			case Type::Other:
+				return std::format("Other({})", m_data.other);
+		}
+	}
+
 	Token Token::opening(BracketType type) {
 		Token t;
-		t.type = TokenType::OpeningBracket;
-		t.data.bracket_type = type;
+		t.m_type = Type::OpeningBracket;
+		t.m_data.bracket_type = type;
 
 		return t;
 	}
 
 	Token Token::closing(BracketType type) {
 		Token t;
-		t.type = TokenType::ClosingBracket;
-		t.data.bracket_type = type;
+		t.m_type = Type::ClosingBracket;
+		t.m_data.bracket_type = type;
 
 		return t;
 	}
 
 	Token Token::other(std::string_view string) {
 		Token t;
-		t.type = TokenType::Other;
-		t.data.other = string;
+		t.m_type = Type::Other;
+		t.m_data.other = string;
 
 		return t;
 	}

@@ -1,25 +1,31 @@
 #pragma once
 
 #include "src/error.hh"
+
 #include <optional>
 #include <string_view>
+#include <format>
 
 namespace dvel {
-	enum struct BracketType {
+	enum class BracketType {
 		Parenthesis,
 		Square,
 		Curly,
 	};
 
-	enum struct TokenType {
-		OpeningBracket,
-		ClosingBracket,
-		Other,
-	};
-
 	class Token {
 		public:
+			enum struct Type {
+				OpeningBracket,
+				ClosingBracket,
+				Other,
+			};
+
 			constexpr Token(std::string_view s);
+
+			Type type() const;
+
+			std::string to_string() const;
 
 			static Token opening(BracketType);
 			static Token closing(BracketType);
@@ -29,13 +35,13 @@ namespace dvel {
 			static std::optional<BracketType> as_closing();
 			static std::optional<std::string_view> as_other();
 		private:
-			TokenType type;
+			Type m_type;
 			union TokenData {
 				std::string_view other;
 				BracketType      bracket_type;
 
 				constexpr TokenData() {}
-			} data;
+			} m_data;
 
 			inline Token() {}
 	};
@@ -54,15 +60,15 @@ namespace dvel {
 			switch(s[0]) {
 				case ')':
 				case '(':
-					this->data.bracket_type = BracketType::Parenthesis;
+					m_data.bracket_type = BracketType::Parenthesis;
 					break;
 				case ']':
 				case '[':
-					this->data.bracket_type = BracketType::Square;
+					m_data.bracket_type = BracketType::Square;
 					break;
 				case '}':
 				case '{':
-					this->data.bracket_type = BracketType::Curly;
+					m_data.bracket_type = BracketType::Curly;
 					break;
 			}
 
@@ -70,17 +76,17 @@ namespace dvel {
 				case '(':
 				case '[':
 				case '{':
-					this->type = TokenType::OpeningBracket;
+					m_type = Type::OpeningBracket;
 					return;
 				case ')':
 				case ']':
 				case '}':
-					this->type = TokenType::OpeningBracket;
+					m_type = Type::OpeningBracket;
 					return;
 			}
 		}
 
-		this->type = TokenType::Other;
-		this->data.other = s;
+		m_type = Type::Other;
+		m_data.other = s;
 	};
 }
