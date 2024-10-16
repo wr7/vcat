@@ -1,10 +1,11 @@
 #include "src/error.hh"
 #include "src/lexer.hh"
+#include "src/lexer/token.hh"
 #include <iostream>
 #include <string_view>
 
 int main() {
-	std::string_view input_test = "let edited = v.encode(vids[\"cool video.mp4\"])";
+	std::string_view input_test = R"--(let edited = v.encode(videos["\"test\" video.mp4"]))--";
 	dvel::Lexer lexer = dvel::Lexer(input_test);
 
 	try {
@@ -23,4 +24,3 @@ int main() {
 		std::cout << d.msg() << '\n';
 	}
 }
-
