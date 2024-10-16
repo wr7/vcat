@@ -5,6 +5,36 @@
 #include <string_view>
 
 namespace dvel {
+	std::optional<Spanned<Token>> Lexer::next() {
+		for(;;) {
+			if(m_remaining_idx >= m_src.length()) {
+				return std::optional<Spanned<Token>>();
+			}
+
+			char c = m_src[m_remaining_idx];
+
+			if(c <= ' ') {
+				m_remaining_idx += 1;
+				continue;
+			}
+
+			auto ident = this->lex_ident();
+			if(ident.has_value()){
+				return ident;
+			}
+
+			auto string = this->lex_string();
+			if(string.has_value()){
+				return string;
+			}
+
+			auto symbol = this->lex_symbol();
+			if(symbol.has_value()) {
+				return symbol;
+			}
+		}
+	}
+
 	std::optional<Spanned<Token>> Lexer::lex_symbol() {
 		if(m_remaining_idx >= m_src.length()) {
 			return std::optional<Spanned<Token>>();
@@ -15,31 +45,21 @@ namespace dvel {
 		m_remaining_idx += 1;
 
 		Token tok = ([=, this]() {switch(c) {
-			case '.':
-				return Token(".");
-			case ',':
-				return Token(",");
-			case ';':
-				return Token(";");
-			case '=':
-				return Token("=");
-			case '(':
-				return Token("(");
-			case ')':
-				return Token(")");
-			case '[':
-				return Token("[");
-			case ']':
-				return Token("]");
-			case '{':
-				return Token("{");
-			case '}':
-				return Token("}");
+			case '.': return Token(".");
+			case ',': return Token(",");
+			case ';': return Token(";");
+			case '=': return Token("=");
+			case '(': return Token("(");
+			case ')': return Token(")");
+			case '[': return Token("[");
+			case ']': return Token("]");
+			case '{': return Token("{");
+			case '}': return Token("}");
 			default:
 				throw Diagnostic(std::format("Invalid token `{}`", c), {Diagnostic::Hint("", Span(m_remaining_idx, 1))});
 		}})();
 
-		return std::optional(Spanned(tok, s));
+		return std::optional(Spanned(Token(std::move(tok)), s));
 	}
 
 	std::optional<Spanned<Token>> Lexer::lex_ident() {
@@ -73,29 +93,50 @@ namespace dvel {
 		return std::optional(Spanned(Token::identifier(ident), s));
 	}
 
-	std::optional<Spanned<Token>> Lexer::next() {
+	std::optional<Spanned<Token>> Lexer::lex_string() {
+		if(m_remaining_idx >= m_src.length()) {
+			return std::optional<Spanned<Token>>();
+		}
+
+		char c = m_src[m_remaining_idx];
+
+
+		if(c != '"') {
+			return std::optional<Spanned<Token>>();
+		}
+
+		const size_t start = m_remaining_idx;
+		m_remaining_idx += 1;
+		bool escape = false;
+		std::string string;
+
 		for(;;) {
 			if(m_remaining_idx >= m_src.length()) {
-				return std::optional<Spanned<Token>>();
+				throw Diagnostic("Expected `\"`; got EOF", {Diagnostic::Hint("", Span(m_remaining_idx, 0))});
 			}
 
 			char c = m_src[m_remaining_idx];
+			m_remaining_idx += 1;
 
-			if(c <= ' ') {
-				m_remaining_idx += 1;
-				continue;
+			if(!escape) {
+				if(c == '"') {
+					break;
+				}
+
+				if(c == '\\') {
+					escape = true;
+					continue;
+				}
 			}
 
-			auto ident = this->lex_ident();
-			if(ident.has_value()){
-				return ident;
-			}
-
-			auto symbol = this->lex_symbol();
-			if(symbol.has_value()) {
-				return symbol;
-			}
+			escape = false;
+			string += c;
 		}
+
+		Span s = Span(start, m_remaining_idx - start);
+		Token t = Token::string(std::move(string));
+
+		return Spanned(std::move(t), s);
 	}
 
 	static std::string_view SymbolType_to_str(SymbolType ty) {
@@ -129,15 +170,15 @@ namespace dvel {
 	std::string Token::to_string() const {
 		switch(m_type) {
 			case Type::OpeningBracket:
-				return std::format("OpeningBracket({})", BracketType_to_str(m_data.bracket_type));
+				return std::format("OpeningBracket({})", BracketType_to_str(m_bracket_type));
 			case Type::ClosingBracket:
-				return std::format("ClosingBracket({})", BracketType_to_str(m_data.bracket_type));
+				return std::format("ClosingBracket({})", BracketType_to_str(m_bracket_type));
 			case Type::Identifier:
-				return std::format("Identifier({})", m_data.identifier);
+				return std::format("Identifier({})", m_identifier);
 			case Type::String:
-				return std::format("String({})", m_data.string);
+				return std::format("String({})", m_string);
 			case Type::Symbol:
-				return std::format("Symbol({})", SymbolType_to_str(m_data.symbol));
+				return std::format("Symbol({})", SymbolType_to_str(m_symbol));
 		}
 
 		throw; // unreachable
@@ -146,25 +187,70 @@ namespace dvel {
 	Token Token::opening(BracketType type) {
 		Token t;
 		t.m_type = Type::OpeningBracket;
-		t.m_data.bracket_type = type;
+		t.m_bracket_type = type;
 
-		return t;
+		return Token(std::move(t));
 	}
 
 	Token Token::closing(BracketType type) {
 		Token t;
 		t.m_type = Type::ClosingBracket;
-		t.m_data.bracket_type = type;
+		t.m_bracket_type = type;
 
-		return t;
+		return Token(std::move(t));
 	}
 
 	Token Token::identifier(std::string_view identifier) {
 		Token t;
 		t.m_type = Type::Identifier;
-		t.m_data.identifier = identifier;
+		t.m_identifier = identifier;
 
-		return t;
+		return Token(std::move(t));
+	}
+
+	Token Token::string(std::string&& string) {
+		Token t;
+		t.m_type = Type::String;
+		new(&t.m_string) std::string(string);
+
+		return Token(std::move(t));
+	}
+
+	Token::~Token() {
+		switch(m_type) {
+			case Type::OpeningBracket:
+			case Type::ClosingBracket:
+			case Type::Identifier:
+			case Type::Symbol:
+				break; // No destructor needed
+			case Type::String:
+				m_string.std::string::~string();
+				break;
+		}
+	}
+
+	Token::Token(Token &&d) {
+		m_type = d.m_type;
+
+		switch(d.m_type) {
+			case Type::OpeningBracket:
+			case Type::ClosingBracket:
+				m_bracket_type = d.m_bracket_type;
+				break;
+			case Type::String:
+				new(&m_string) std::string(std::move(d.m_string));
+				break;
+			case Type::Identifier:
+				m_identifier = d.m_identifier;
+				break;
+			case Type::Symbol:
+				m_symbol = d.m_symbol;
+				break;
+		}
+
+		// To prevent the destructor of `d` from doing anything //
+		d.m_type = Type::Symbol;
+		d.m_symbol = SymbolType::Dot;
 	}
 }
 

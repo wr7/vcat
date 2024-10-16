@@ -16,7 +16,7 @@ namespace dvel {
 	template <typename T>
 	class Spanned {
 		public:
-			constexpr inline Spanned<T>(T val, Span span): val(val), span(span) {};
+			constexpr inline Spanned<T>(T val, Span span): val(std::move(val)), span(span) {};
 			T val;
 			Span span;
 	};

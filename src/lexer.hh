@@ -2,6 +2,8 @@
 
 #include "src/error.hh"
 
+#include <cstddef>
+#include <cstring>
 #include <optional>
 #include <string_view>
 
@@ -33,6 +35,10 @@ namespace dvel {
 
 			consteval Token(std::string_view s);
 
+			Token(const Token& d) = delete;
+			Token(Token&& d);
+			~Token();
+
 			Type type() const;
 
 			std::string to_string() const;
@@ -40,23 +46,22 @@ namespace dvel {
 			static Token opening(BracketType);
 			static Token closing(BracketType);
 			static Token identifier(std::string_view);
+			static Token string(std::string&& string);
 
-			static std::optional<BracketType> as_opening();
-			static std::optional<BracketType> as_closing();
-			static std::optional<std::string_view> as_other();
+			std::optional<BracketType> as_opening();
+			std::optional<BracketType> as_closing();
+			std::optional<std::string_view> as_other();
 		private:
 			Type m_type;
-			union TokenData {
-				std::string_view identifier;
-				std::string_view string;
-				BracketType      bracket_type;
+			union {
+				std::string_view m_identifier;
+				std::string      m_string;
+				BracketType      m_bracket_type;
 
-				SymbolType       symbol;
+				SymbolType       m_symbol;
+			};
 
-				constexpr TokenData() {}
-			} m_data;
-
-			inline Token() {}
+			inline Token() noexcept {};
 	};
 
 	class Lexer {
@@ -69,6 +74,7 @@ namespace dvel {
 
 			std::optional<Spanned<Token>> lex_symbol();
 			std::optional<Spanned<Token>> lex_ident();
+			std::optional<Spanned<Token>> lex_string();
 	};
 
 	constexpr std::optional<SymbolType> SymbolType_from_string(std::string_view s) {
@@ -80,17 +86,13 @@ namespace dvel {
 
 		switch(s[0]) {
 			case '.':
-				ty = SymbolType::Dot;
-				break;
+				ty = SymbolType::Dot;       break;
 			case ',':
-				ty = SymbolType::Comma;
-				break;
+				ty = SymbolType::Comma;     break;
 			case ';':
-				ty = SymbolType::Semicolon;
-				break;
+				ty = SymbolType::Semicolon; break;
 			case '=':
-				ty = SymbolType::Equals;
-				break;
+				ty = SymbolType::Equals;    break;
 			default:
 				return std::optional<SymbolType>();
 		}
@@ -102,13 +104,13 @@ namespace dvel {
 		if(s.length() == 1) {
 			switch(s[0]) {
 				case '(': case ')':
-					m_data.bracket_type = BracketType::Parenthesis;
+					m_bracket_type = BracketType::Parenthesis;
 					break;
 				case '[': case ']':
-					m_data.bracket_type = BracketType::Square;
+					m_bracket_type = BracketType::Square;
 					break;
 				case '{': case '}':
-					m_data.bracket_type = BracketType::Curly;
+					m_bracket_type = BracketType::Curly;
 					break;
 			}
 
@@ -125,11 +127,11 @@ namespace dvel {
 		auto symbol_type = SymbolType_from_string(s);
 		if(symbol_type.has_value()) {
 			m_type = Type::Symbol;
-			m_data.symbol = symbol_type.value();
+			m_symbol = symbol_type.value();
 			return;
 		}
 
 		m_type = Type::Identifier;
-		m_data.identifier = s;
+		m_identifier = s;
 	};
 }

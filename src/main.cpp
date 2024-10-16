@@ -4,7 +4,7 @@
 #include <string_view>
 
 int main() {
-	std::string_view input_test = "let x = y({z = [w(), f()]})";
+	std::string_view input_test = "let edited = v.encode(vids[\"cool video.mp4\"])";
 	dvel::Lexer lexer = dvel::Lexer(input_test);
 
 	try {
@@ -14,7 +14,7 @@ int main() {
 				break;
 			}
 
-			dvel::Spanned<dvel::Token> token = token_.value();
+			dvel::Spanned<dvel::Token> token = std::move(token_.value());
 
 			std::cout << token.val.to_string() << '\n';
 		}
