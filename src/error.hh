@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace dvel {
@@ -9,6 +10,7 @@ namespace dvel {
 			constexpr inline Span(size_t start, size_t length): start(start), length(length) {};
 			size_t start;
 			size_t length;
+			Span() = delete;
 	};
 
 	template <typename T>
@@ -29,10 +31,14 @@ namespace dvel {
 					Span span;
 			};
 
-			constexpr inline Diagnostic(std::string msg, std::vector<Hint> hints): msg(msg), hints(hints) {};
+			constexpr inline Diagnostic(std::string msg, std::vector<Hint> hints): m_msg(msg), m_hints(hints) {};
+
+			constexpr std::string_view msg() {
+				return std::string_view(this->m_msg);
+			}
 
 		private:
-			std::string msg;
-			std::vector<Hint> hints;
+			std::string m_msg;
+			std::vector<Hint> m_hints;
 	};
 }

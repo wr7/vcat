@@ -4,13 +4,19 @@
 
 #include <optional>
 #include <string_view>
-#include <format>
 
 namespace dvel {
-	enum class BracketType {
+	enum struct BracketType {
 		Parenthesis,
 		Square,
 		Curly,
+	};
+
+	enum struct SymbolType {
+		Dot,
+		Comma,
+		Semicolon,
+		Equals,
 	};
 
 	class Token {
@@ -18,10 +24,14 @@ namespace dvel {
 			enum struct Type {
 				OpeningBracket,
 				ClosingBracket,
-				Other,
+
+				String,
+				Identifier,
+
+				Symbol,
 			};
 
-			constexpr Token(std::string_view s);
+			consteval Token(std::string_view s);
 
 			Type type() const;
 
@@ -29,7 +39,7 @@ namespace dvel {
 
 			static Token opening(BracketType);
 			static Token closing(BracketType);
-			static Token other(std::string_view);
+			static Token identifier(std::string_view);
 
 			static std::optional<BracketType> as_opening();
 			static std::optional<BracketType> as_closing();
@@ -37,8 +47,11 @@ namespace dvel {
 		private:
 			Type m_type;
 			union TokenData {
-				std::string_view other;
+				std::string_view identifier;
+				std::string_view string;
 				BracketType      bracket_type;
+
+				SymbolType       symbol;
 
 				constexpr TokenData() {}
 			} m_data;
@@ -53,40 +66,70 @@ namespace dvel {
 		private:
 			std::string_view m_src;
 			size_t m_remaining_idx;
+
+			std::optional<Spanned<Token>> lex_symbol();
+			std::optional<Spanned<Token>> lex_ident();
 	};
 
-	constexpr inline Token::Token(std::string_view s) {
+	constexpr std::optional<SymbolType> SymbolType_from_string(std::string_view s) {
+		if(s.length() != 1) {
+			return std::optional<SymbolType>();
+		}
+
+		SymbolType ty;
+
+		switch(s[0]) {
+			case '.':
+				ty = SymbolType::Dot;
+				break;
+			case ',':
+				ty = SymbolType::Comma;
+				break;
+			case ';':
+				ty = SymbolType::Semicolon;
+				break;
+			case '=':
+				ty = SymbolType::Equals;
+				break;
+			default:
+				return std::optional<SymbolType>();
+		}
+
+		return std::optional(ty);
+	}
+
+	consteval Token::Token(std::string_view s) {
 		if(s.length() == 1) {
 			switch(s[0]) {
-				case ')':
-				case '(':
+				case '(': case ')':
 					m_data.bracket_type = BracketType::Parenthesis;
 					break;
-				case ']':
-				case '[':
+				case '[': case ']':
 					m_data.bracket_type = BracketType::Square;
 					break;
-				case '}':
-				case '{':
+				case '{': case '}':
 					m_data.bracket_type = BracketType::Curly;
 					break;
 			}
 
 			switch(s[0]) {
-				case '(':
-				case '[':
-				case '{':
+				case '(': case '[': case '{':
 					m_type = Type::OpeningBracket;
 					return;
-				case ')':
-				case ']':
-				case '}':
-					m_type = Type::OpeningBracket;
+				case ')': case ']': case '}':
+					m_type = Type::ClosingBracket;
 					return;
 			}
 		}
 
-		m_type = Type::Other;
-		m_data.other = s;
+		auto symbol_type = SymbolType_from_string(s);
+		if(symbol_type.has_value()) {
+			m_type = Type::Symbol;
+			m_data.symbol = symbol_type.value();
+			return;
+		}
+
+		m_type = Type::Identifier;
+		m_data.identifier = s;
 	};
 }

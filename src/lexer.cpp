@@ -1,61 +1,116 @@
 #include "src/lexer.hh"
+#include "src/error.hh"
 #include <format>
+#include <optional>
+#include <string_view>
 
 namespace dvel {
-	std::optional<Spanned<Token>> Lexer::next() {
-		start:
+	std::optional<Spanned<Token>> Lexer::lex_symbol() {
 		if(m_remaining_idx >= m_src.length()) {
 			return std::optional<Spanned<Token>>();
 		}
 
-		const size_t start_idx = m_remaining_idx;
+		char c = m_src[m_remaining_idx];
+		Span s = Span(m_remaining_idx, 1);
+		m_remaining_idx += 1;
+
+		Token tok = ([=, this]() {switch(c) {
+			case '.':
+				return Token(".");
+			case ',':
+				return Token(",");
+			case ';':
+				return Token(";");
+			case '=':
+				return Token("=");
+			case '(':
+				return Token("(");
+			case ')':
+				return Token(")");
+			case '[':
+				return Token("[");
+			case ']':
+				return Token("]");
+			case '{':
+				return Token("{");
+			case '}':
+				return Token("}");
+			default:
+				throw Diagnostic(std::format("Invalid token `{}`", c), {Diagnostic::Hint("", Span(m_remaining_idx, 1))});
+		}})();
+
+		return std::optional(Spanned(tok, s));
+	}
+
+	std::optional<Spanned<Token>> Lexer::lex_ident() {
+		const size_t start = m_remaining_idx;
 		size_t len = 0;
 
 		while(m_remaining_idx < m_src.length()) {
 			char c = m_src[m_remaining_idx];
 
-			if(c <= ' ') {
-				m_remaining_idx += 1;
-				break;
-			}
-
-			if((c >= 'a' && c <= 'z')
+			if(
+			   (c >= 'a' && c <= 'z')
 			|| (c >= 'A' && c <= 'Z')
 			|| (c >= '0' && c <= '9')
 			||  c == '_'
 			) {
-				m_remaining_idx += 1;
 				len += 1;
+				m_remaining_idx += 1;
 				continue;
-			}
-
-			 switch(c) {
-				case '+': case '-':
-				case '=': case ';':
-				case '.': case ',':
-				case '{': case '}':
-				case '[': case ']':
-				case '(': case ')':
+			} else {
 				break;
-
-				default:
-				throw Diagnostic(std::format("Invalid token `{}`", c), {Diagnostic::Hint("", Span(m_remaining_idx, 1))});
-			 }
-
-			 if(len == 0) {
-				m_remaining_idx += 1;
-				len += 1;
-			 }
-			 break;
+			}
 		}
 
 		if(len == 0) {
-			goto start;
+			return std::optional<Spanned<Token>>();
 		}
 
-		Token tok = Token(m_src.substr(start_idx, len));
+		Span s = Span(start, len);
+		std::string_view ident = m_src.substr(start, len);
 
-		return std::optional(Spanned(tok, Span(start_idx, len)));
+		return std::optional(Spanned(Token::identifier(ident), s));
+	}
+
+	std::optional<Spanned<Token>> Lexer::next() {
+		for(;;) {
+			if(m_remaining_idx >= m_src.length()) {
+				return std::optional<Spanned<Token>>();
+			}
+
+			char c = m_src[m_remaining_idx];
+
+			if(c <= ' ') {
+				m_remaining_idx += 1;
+				continue;
+			}
+
+			auto ident = this->lex_ident();
+			if(ident.has_value()){
+				return ident;
+			}
+
+			auto symbol = this->lex_symbol();
+			if(symbol.has_value()) {
+				return symbol;
+			}
+		}
+	}
+
+	static std::string_view SymbolType_to_str(SymbolType ty) {
+		switch(ty) {
+			case SymbolType::Dot:
+				return ".";
+			case SymbolType::Comma:
+				return ",";
+			case SymbolType::Semicolon:
+				return ";";
+			case SymbolType::Equals:
+				return "=";
+		}
+
+		throw; // unreachable
 	}
 
 	static std::string_view BracketType_to_str(BracketType ty) {
@@ -77,9 +132,15 @@ namespace dvel {
 				return std::format("OpeningBracket({})", BracketType_to_str(m_data.bracket_type));
 			case Type::ClosingBracket:
 				return std::format("ClosingBracket({})", BracketType_to_str(m_data.bracket_type));
-			case Type::Other:
-				return std::format("Other({})", m_data.other);
+			case Type::Identifier:
+				return std::format("Identifier({})", m_data.identifier);
+			case Type::String:
+				return std::format("String({})", m_data.string);
+			case Type::Symbol:
+				return std::format("Symbol({})", SymbolType_to_str(m_data.symbol));
 		}
+
+		throw; // unreachable
 	}
 
 	Token Token::opening(BracketType type) {
@@ -98,10 +159,10 @@ namespace dvel {
 		return t;
 	}
 
-	Token Token::other(std::string_view string) {
+	Token Token::identifier(std::string_view identifier) {
 		Token t;
-		t.m_type = Type::Other;
-		t.m_data.other = string;
+		t.m_type = Type::Identifier;
+		t.m_data.identifier = identifier;
 
 		return t;
 	}
