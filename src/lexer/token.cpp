@@ -5,7 +5,7 @@
 #include <string_view>
 
 namespace dvel {
-		static std::string_view SymbolType_to_str(SymbolType ty) {
+	static std::string_view SymbolType_to_str(SymbolType ty) {
 		switch(ty) {
 			case SymbolType::Dot:
 				return ".";
@@ -30,7 +30,7 @@ namespace dvel {
 				return "Curly";
 		}
 
-		throw;
+		throw; // unreachable
 	}
 
 	std::string Token::to_string() const {
@@ -153,9 +153,5 @@ namespace dvel {
 				m_symbol = d.m_symbol;
 				break;
 		}
-
-		// To prevent the destructor of `d` from doing anything //
-		d.m_type = Type::Symbol;
-		d.m_symbol = SymbolType::Dot;
 	}
 }

@@ -38,6 +38,7 @@ namespace dvel {
 
 			Type type() const;
 
+			// Displays any `Token` as a string
 			std::string to_string() const;
 
 			static Token opening(BracketType);

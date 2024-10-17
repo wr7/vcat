@@ -5,6 +5,7 @@
 #include <vector>
 
 namespace dvel {
+	// Position in source code (primarily used for error messages).
 	class Span {
 		public:
 			constexpr inline Span(size_t start, size_t length): start(start), length(length) {};
@@ -13,6 +14,7 @@ namespace dvel {
 			Span() = delete;
 	};
 
+	// An object with a `Span`.
 	template <typename T>
 	class Spanned {
 		public:
@@ -21,8 +23,10 @@ namespace dvel {
 			Span span;
 	};
 
+	// A message with one or more `Hint`s
 	class Diagnostic {
 		public:
+			// A message that points to a snippet of code
 			class Hint {
 				public:
 					constexpr inline Hint(std::string msg, Span span): msg(msg), span(span) {};
