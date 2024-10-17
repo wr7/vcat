@@ -15,6 +15,7 @@ ffmpeg_deps = [
 
 source_files = [
   'src/main.cpp'
+ ,'src/error.cpp'
  ,'src/lexer.cpp'
  ,'src/lexer/token.cpp'
 ]

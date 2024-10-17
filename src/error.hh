@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -12,6 +13,23 @@ namespace dvel {
 			size_t start;
 			size_t length;
 			Span() = delete;
+	};
+
+	typedef struct {
+		size_t line;
+		size_t column;
+	} LineAndColumn;
+
+	// Precomputed information for determining the line and column number of a `Span`
+	class LineInfo {
+		public:
+			LineInfo(std::string_view);
+
+			LineAndColumn position_of(size_t);
+			std::array<LineAndColumn, 2> position_of(Span);
+		private:
+			// The byte indexes of where each line starts
+			std::vector<size_t> m_line_start_indexes;
 	};
 
 	// An object with a `Span`.
