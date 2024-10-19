@@ -42,6 +42,7 @@ namespace dvel {
 
 	void DiagnosticRenderer::render() {
 		m_stream
+			<< ' '
 			<< m_diagnostic.msg()
 			<< "\n\n";
 
@@ -156,7 +157,7 @@ namespace dvel {
 
 		// Calculate padding for line numbers
 		size_t n = max_line_no;
-		m_line_no_padding = 0;
+		m_line_no_padding = 1;
 		do {
 			n /= 10;
 			m_line_no_padding += 1;

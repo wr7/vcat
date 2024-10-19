@@ -82,7 +82,7 @@ namespace dvel {
 		return Token(std::move(t));
 	}
 
-	std::optional<BracketType> Token::as_opening() {
+	std::optional<BracketType> Token::as_opening() const {
 		if(m_type != Type::OpeningBracket) {
 			return std::optional<BracketType>();
 		}
@@ -90,7 +90,7 @@ namespace dvel {
 		return m_bracket_type;
 	}
 
-	std::optional<BracketType> Token::as_closing() {
+	std::optional<BracketType> Token::as_closing() const {
 		if(m_type != Type::ClosingBracket) {
 			return std::optional<BracketType>();
 		}
@@ -98,7 +98,7 @@ namespace dvel {
 		return m_bracket_type;
 	}
 
-	std::optional<std::string_view> Token::as_string() {
+	std::optional<std::string_view> Token::as_string() const {
 		if(m_type != Type::String) {
 			return std::optional<std::string_view>();
 		}
@@ -106,7 +106,7 @@ namespace dvel {
 		return std::string_view(m_string);
 	}
 
-	std::optional<std::string_view> Token::as_identifier() {
+	std::optional<std::string_view> Token::as_identifier() const {
 		if(m_type != Type::Identifier) {
 			return std::optional<std::string_view>();
 		}
@@ -114,7 +114,7 @@ namespace dvel {
 		return m_identifier;
 	}
 
-	std::optional<SymbolType> Token::as_symbol() {
+	std::optional<SymbolType> Token::as_symbol() const {
 		if(m_type != Type::Symbol) {
 			return std::optional<SymbolType>();
 		}

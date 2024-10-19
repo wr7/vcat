@@ -46,13 +46,13 @@ namespace dvel {
 			static Token identifier(std::string_view);
 			static Token string(std::string&& string);
 
-			std::optional<BracketType> as_opening();
-			std::optional<BracketType> as_closing();
+			std::optional<BracketType> as_opening() const;
+			std::optional<BracketType> as_closing() const;
 
-			std::optional<std::string_view> as_string();
-			std::optional<std::string_view> as_identifier();
+			std::optional<std::string_view> as_string() const;
+			std::optional<std::string_view> as_identifier() const;
 
-			std::optional<SymbolType> as_symbol();
+			std::optional<SymbolType> as_symbol() const;
 		private:
 			Type m_type;
 			union {

@@ -18,6 +18,7 @@ source_files = [
  ,'src/error.cpp'
  ,'src/lexer.cpp'
  ,'src/lexer/token.cpp'
+ ,'src/parser.cpp'
 ]
 
 executable('dvel'
