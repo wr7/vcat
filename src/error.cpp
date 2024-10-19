@@ -47,8 +47,7 @@ namespace dvel {
 
 		size_t previous_line_no = 0;
 
-		for(size_t i = 0; i < m_diagnostic.hints().size(); i++) {
-			const Diagnostic::Hint& h = m_diagnostic.hints()[i];
+		for(const Diagnostic::Hint& h : m_diagnostic.hints()) {
 			const std::array<LineAndColumn, 2> line_info = m_source_info.position_of(h.span);
 
 			size_t n_prelude_lines = line_info[0].line - std::min(line_info[0].line, previous_line_no + 1);
@@ -137,9 +136,7 @@ namespace dvel {
 		const size_t line_start = m_source_info.start_of_line(line_no);
 		size_t line_length = 0;
 
-		for(size_t i = line_start; i < m_source_info.src().length() ; i++) {
-			char c = m_source_info.src()[i];
-
+		for(char c : m_source_info.src().substr(line_start)) {
 			if(c == '\n') {
 				break;
 			}
