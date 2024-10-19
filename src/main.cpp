@@ -5,22 +5,20 @@
 #include <string_view>
 
 int main() {
-	std::string_view input_test = R"--(let edited = v.encode(videos["\"test\" video.mp4"]))--";
+	std::string_view input_test = 
+R"--(let edited = v.encode(videos["\"test\" video.mp4"])
+let z = 7;
+let w = ";
+foo bar
+)--";
 	dvel::Lexer lexer = dvel::Lexer(input_test);
 
 	try {
 		for(;;) {
-			auto token_ = lexer.next();
-			if(!token_.has_value()) {
-				break;
-			}
-
-			dvel::Spanned<dvel::Token> token = std::move(token_.value());
-
-			std::cout << token.val.to_string() << '\n';
+			lexer.next();
 		}
 	}
 	catch(dvel::Diagnostic d) {
-		std::cout << d.msg() << '\n';
+		std::cout << '\n' << d.render(input_test) << '\n';
 	}
 }

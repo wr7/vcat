@@ -4,6 +4,8 @@
 #include <optional>
 #include <string_view>
 
+using Hint = dvel::Diagnostic::Hint;
+
 namespace dvel {
 	std::optional<Spanned<Token>> Lexer::next() {
 		for(;;) {
@@ -56,7 +58,11 @@ namespace dvel {
 			case '{': return Token("{");
 			case '}': return Token("}");
 			default:
-				throw Diagnostic(std::format("Invalid token `{}`", c), {Diagnostic::Hint("", Span(m_remaining_idx, 1))});
+				if(c != '`') {
+					throw Diagnostic(std::format("Error: invalid token `{}`", c), {Hint::error("", Span(m_remaining_idx - 1, 1))});
+				} else {
+					throw Diagnostic(std::format("Error: invalid token '{}'", c), {Hint::error("", Span(m_remaining_idx - 1, 1))});
+				}
 		}})();
 
 		return std::optional(Spanned(Token(std::move(tok)), s));
@@ -112,7 +118,13 @@ namespace dvel {
 
 		for(;;) {
 			if(m_remaining_idx >= m_src.length()) {
-				throw Diagnostic("Expected `\"`; got EOF", {Diagnostic::Hint("", Span(m_remaining_idx, 0))});
+				throw Diagnostic(
+					"Error: unclosed string",
+					{
+						 Hint::info ("String starts here",     Span(start,           1))
+						,Hint::error("String is never closed", Span(m_remaining_idx, 0))
+					}
+				);
 			}
 
 			char c = m_src[m_remaining_idx];

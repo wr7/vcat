@@ -9,6 +9,14 @@
 #include <vector>
 
 namespace dvel {
+	namespace ansi_escape {
+		constexpr std::string_view BOLD    = "\x1b[1m";
+		constexpr std::string_view UNBOLD  = "\x1b[22m";
+		constexpr std::string_view RED_FG  = "\x1b[31m";
+		constexpr std::string_view CYAN_FG = "\x1b[36m";
+		constexpr std::string_view RESET   = "\x1b[m";
+	}
+
 	// Position in source code (primarily used for error messages).
 	class Span {
 		public:
@@ -53,17 +61,43 @@ namespace dvel {
 	// A message with one or more `Hint`s
 	class Diagnostic {
 		public:
+			std::string render(const SourceInfo& si) const;
 			// A message that points to a snippet of code
 			class Hint {
 				public:
-					constexpr Hint(std::string msg, Span span): msg(msg), span(span) {};
 					Hint() = delete;
+					constexpr static Hint error(std::string&& msg, Span span) {
+						return Hint(
+							msg,
+							span,
+							ansi_escape::RED_FG,
+							'^'
+						);
+					}
+
+					constexpr static Hint info(std::string&& msg, Span span) {
+						return Hint(
+							msg,
+							span,
+							ansi_escape::CYAN_FG,
+							'-'
+						);
+					}
 
 					std::string msg;
 					Span span;
+
+					// The ANSI escape sequence for the color that the hint should be rendered with
+					std::string_view m_color;
+
+					// The character that is rendered under the offending code
+					char             m_pointer_char;
+				private:
+					constexpr Hint(std::string msg, Span span, std::string_view color, char pointer)
+						: msg(msg), span(span), m_color(color), m_pointer_char(pointer) {};
 			};
 
-			constexpr Diagnostic(std::string msg, std::vector<Hint> hints): m_msg(msg), m_hints(hints) {};
+			constexpr Diagnostic(std::string&& msg, std::vector<Hint> hints): m_msg(msg), m_hints(hints) {};
 
 			constexpr std::string_view msg() const {
 				return std::string_view(this->m_msg);
@@ -74,21 +108,7 @@ namespace dvel {
 			}
 
 		private:
-			std::string m_msg;
+			std::string       m_msg;
 			std::vector<Hint> m_hints;
-	};
-
-	class DiagnosticRenderer {
-		public:
-			DiagnosticRenderer(const SourceInfo& source_info, const Diagnostic& diagnostic);
-			DiagnosticRenderer() = delete;
-
-			void render_source_line(size_t line_no);
-			constexpr std::stringstream& stream() {return m_stream;};
-		private:
-			std::stringstream m_stream;
-			const SourceInfo& m_source_info;
-			const Diagnostic& m_diagnostic;
-			size_t            m_line_no_padding;
 	};
 }
