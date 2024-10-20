@@ -14,6 +14,7 @@ namespace dvel::parser {
 			Set(Set&) = delete;
 			Set(Set&&) = default;
 
+			std::string to_string() const;
 			std::vector<Expression> m_elements;
 	};
 
@@ -21,6 +22,7 @@ namespace dvel::parser {
 		FunctionCall(FunctionCall&) = delete;
 		FunctionCall(FunctionCall&&) = default;
 
+		std::string to_string() const;
 		inline FunctionCall(Expression&& function, std::vector<Expression>&& args);
 
 		std::unique_ptr<Expression> m_function;
@@ -32,6 +34,8 @@ namespace dvel::parser {
 			static Expression variable(std::string&&);
 			static Expression set(std::vector<Expression>&&);
 			static Expression function_call(Expression&& function, std::vector<Expression>&& args);
+
+			std::string to_string() const;
 
 			std::optional<std::string_view> as_variable() const;
 			OptionalRef<const Set> as_set() const;

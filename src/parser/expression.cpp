@@ -1,8 +1,11 @@
 #include "src/parser/expression.hh"
 #include "src/parser/error.hh"
+#include "src/util.hh"
 
 #include <cstdlib>
+#include <sstream>
 #include <string_view>
+#include <format>
 
 namespace dvel::parser {
 	Expression Expression::variable(std::string &&name) {
@@ -70,6 +73,8 @@ namespace dvel::parser {
 	}
 
 	Expression::Expression(Expression&& old) {
+		m_type = old.m_type;
+
 		switch(old.m_type) {
 			case Type::Variable:
 				new(&m_variable) std::string(std::move(old.m_variable));
@@ -80,6 +85,63 @@ namespace dvel::parser {
 			case Type::FunctionCall:
 				new(&m_function_call) FunctionCall(std::move(old.m_function_call));
 				return;
+		}
+
+		std::abort(); // unreachable
+	}
+
+	std::string Set::to_string() const {
+		if(m_elements.empty()) {
+			return "Set []\n";
+		}
+
+		std::stringstream s;
+
+		s << "Set [\n";
+		for(const Expression& e: m_elements) {
+			s << indent(e.to_string()) << ",\n";
+		}
+		s << "]";
+
+		return std::move(s).str();
+	}
+
+	std::string FunctionCall::to_string() const {
+		std::stringstream s;
+
+		s
+			<< "Call {\n"
+			<< "  function: (\n"
+			<< indent(m_function->to_string(), 2)
+			<< "\n  ),\n"
+			<< "  args: [";
+
+		if(m_args.empty()) {
+			s << "]\n}";
+			return std::move(s).str();
+		} else {
+			s << "\n";
+		}
+
+		for(const Expression& a: m_args) {
+			s << indent(a.to_string(), 2) << ",\n";
+		}
+
+		s
+			<< "  ]\n"
+			<< "}";
+
+		return std::move(s).str();
+	}
+
+	std::string Expression::to_string() const {
+		switch(m_type) {
+			case Type::Variable:
+				return std::format("Variable({})", m_variable);
+			case Type::Set:
+				return m_set.to_string();
+			case Type::FunctionCall:
+				return m_function_call.to_string();
 		}
 
 		std::abort(); // unreachable
