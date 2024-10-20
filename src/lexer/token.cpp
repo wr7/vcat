@@ -77,7 +77,7 @@ namespace dvel {
 	Token Token::string(std::string&& string) {
 		Token t;
 		t.m_type = Type::String;
-		new(&t.m_string) std::string(string);
+		new(&t.m_string) std::string(std::move(string));
 
 		return Token(std::move(t));
 	}

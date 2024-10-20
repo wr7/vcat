@@ -3,6 +3,7 @@
 #include "src/parser/error.hh"
 #include "src/parser.hh"
 
+#include <cstdlib>
 #include <span>
 
 namespace dvel::parser {

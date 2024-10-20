@@ -68,7 +68,7 @@ namespace dvel {
 					Hint() = delete;
 					constexpr static Hint error(std::string&& msg, Span span) {
 						return Hint(
-							msg,
+							std::move(msg),
 							span,
 							ansi_escape::RED_FG,
 							'^'
@@ -77,7 +77,7 @@ namespace dvel {
 
 					constexpr static Hint info(std::string&& msg, Span span) {
 						return Hint(
-							msg,
+							std::move(msg),
 							span,
 							ansi_escape::CYAN_FG,
 							'-'
@@ -97,7 +97,7 @@ namespace dvel {
 						: msg(msg), span(span), m_color(color), m_pointer_char(pointer) {};
 			};
 
-			constexpr Diagnostic(std::string&& msg, std::vector<Hint> hints): m_msg(msg), m_hints(hints) {};
+			constexpr Diagnostic(std::string&& msg, std::vector<Hint> hints): m_msg(std::move(msg)), m_hints(std::move(hints)) {};
 
 			constexpr std::string_view msg() const {
 				return std::string_view(this->m_msg);
