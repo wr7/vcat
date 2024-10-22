@@ -11,24 +11,7 @@ using dvel::Token;
 using dvel::parser::Expression;
 
 int main() {
-	std::vector<Expression> exprs;
-	exprs.push_back(Expression::variable("cool_video.mp4"));
-	exprs.push_back(Expression::variable("other_video.mp4"));
-
-	Expression encode = Expression::function_call(Expression::variable("encode"), std::move(exprs));
-
-	exprs.push_back(Expression::variable("foo"));
-	exprs.push_back(std::move(encode));
-	exprs.push_back(Expression::variable("bar"));
-
-	Expression e = Expression::set(std::move(exprs));
-
-	std::cout << e.to_string() << '\n';
-
-	std::string_view input_test =
-R"--(let edited = v.encode(videos["\"test\" video.mp4"]);
-    let z = 7;
-)--";
+	std::string_view input_test = R"--([foo, [biz, bang,],bar])--";
 	dvel::Lexer lexer = dvel::Lexer(input_test);
 
 	std::vector<Spanned<Token>> tokens;
@@ -38,6 +21,14 @@ R"--(let edited = v.encode(videos["\"test\" video.mp4"]);
 		}
 
 		dvel::parser::verify_brackets(tokens);
+		std::optional<Spanned<Expression>> expression = dvel::parser::try_parse_expression(tokens);
+
+		if(!expression.has_value()) {
+			std::cout << "empty expression!" << "\n";
+			return 0;
+		}
+
+		std::cout << expression->val.to_string() << "\n";
 	} catch (dvel::Diagnostic d) {
 		std::cout << '\n' << d.render(input_test) << '\n';
 	}

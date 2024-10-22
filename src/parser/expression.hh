@@ -1,5 +1,6 @@
 #pragma once
 
+#include "src/error.hh"
 #include "src/util.hh"
 
 #include <memory>
@@ -15,7 +16,7 @@ namespace dvel::parser {
 			Set(Set&&) = default;
 
 			std::string to_string() const;
-			std::vector<Expression> m_elements;
+			std::vector<Spanned<Expression>> m_elements;
 	};
 
 	struct FunctionCall {
@@ -23,17 +24,17 @@ namespace dvel::parser {
 		FunctionCall(FunctionCall&&) = default;
 
 		std::string to_string() const;
-		inline FunctionCall(Expression&& function, std::vector<Expression>&& args);
+		inline FunctionCall(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args);
 
-		std::unique_ptr<Expression> m_function;
-		std::vector<Expression>     m_args;
+		std::unique_ptr<Spanned<Expression>> m_function;
+		std::vector<Spanned<Expression>>     m_args;
 	};
 
 	class Expression {
 		public:
 			static Expression variable(std::string&&);
-			static Expression set(std::vector<Expression>&&);
-			static Expression function_call(Expression&& function, std::vector<Expression>&& args);
+			static Expression set(std::vector<Spanned<Expression>>&&);
+			static Expression function_call(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args);
 
 			std::string to_string() const;
 
@@ -61,7 +62,7 @@ namespace dvel::parser {
 			};
 	};
 
-	inline FunctionCall::FunctionCall(Expression&& function, std::vector<Expression>&& args)
-		: m_function(new Expression(std::move(function)))
+	inline FunctionCall::FunctionCall(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args)
+		: m_function(new Spanned<Expression>(std::move(function)))
 		, m_args(std::move(args)) {}
 }

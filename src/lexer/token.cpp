@@ -154,4 +154,22 @@ namespace dvel {
 				break;
 		}
 	}
+
+	bool Token::operator==(const Token& rhs) {
+		if(m_type != rhs.m_type) {
+			return false;
+		}
+
+		switch(m_type) {
+			case Type::OpeningBracket:
+			case Type::ClosingBracket:
+				return m_bracket_type == rhs.m_bracket_type;
+			case Type::String:
+				return m_string == rhs.m_string;
+			case Type::Identifier:
+				return m_identifier == rhs.m_identifier;
+			case Type::Symbol:
+				return m_symbol == rhs.m_symbol;
+		}
+	}
 }

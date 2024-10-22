@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <sstream>
 #include <string>
@@ -57,6 +58,30 @@ namespace dvel {
 			T val;
 			Span span;
 	};
+
+	template<typename T>
+	constexpr std::optional<Span> span_of(std::span<Spanned<T>> s) {
+		if(s.empty()) {
+			return std::optional<Span>();
+		}
+
+		const size_t start = s.front().span.start;
+		const Span   end   = s.back().span;
+
+		return Span(start, end.start + end.length - start);
+	}
+
+	template<typename T>
+	constexpr std::optional<Span> span_of(std::span<const Spanned<T>> s) {
+		if(s.empty()) {
+			return std::optional<Span>();
+		}
+
+		const size_t start = s.front().span.start;
+		const Span   end   = s.back().span;
+
+		return Span(start, end.start + end.length - start);
+	}
 
 	// A message with one or more `Hint`s
 	class Diagnostic {

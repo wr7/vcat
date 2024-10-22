@@ -30,4 +30,22 @@ namespace dvel::parser::error {
 			}
 		);
 	}
+
+	constexpr Diagnostic invalid_expression(Span span) {
+		return Diagnostic(
+			"Invalid expression",
+			{
+				Hint::error("", span),
+			}
+		);
+	}
+
+	constexpr Diagnostic expected_expression(Span span) {
+		return Diagnostic(
+			"Expected expression",
+			{
+				Hint::error("Expected expression here", span),
+			}
+		);
+	}
 }

@@ -1,6 +1,7 @@
 #include "src/error.hh"
 #include "src/lexer/token.hh"
 #include "src/parser/error.hh"
+#include "src/parser/expression.hh"
 #include "src/parser.hh"
 
 #include <cstdlib>
@@ -33,5 +34,111 @@ namespace dvel::parser {
 		if(!opening_brackets.empty()) {
 			throw error::unclosed_bracket(opening_brackets.back().span);
 		}
+	}
+
+	std::optional<Spanned<Expression>> try_parse_expression(TokenStream tokens) {
+		if(tokens.empty()) {
+			return std::optional<Spanned<Expression>>();
+		}
+
+		typedef std::optional<Expression> (*subfunction)(TokenStream);
+		constexpr subfunction subfunctions[] = {
+			try_parse_variable,
+			try_parse_set,
+			// try_parse_function_call, // unimplemented
+		};
+
+		std::optional<Expression> expression;
+		for(subfunction f: subfunctions) {
+			if(std::optional<Expression> e = f(tokens)) {
+				expression.emplace(std::move(*e));
+				break;
+			}
+		}
+
+		Span span = *span_of(tokens);
+
+		if(!expression.has_value()) {
+			throw error::invalid_expression(span);
+		}
+
+		return Spanned(std::move(*expression), span);
+	}
+
+	std::optional<Expression> try_parse_variable(TokenStream tokens) {
+		if(tokens.size() != 1) {
+			return std::optional<Expression>();
+		}
+
+		if(std::optional<std::string_view> ident = tokens.front().val.as_identifier()) {
+			return Expression::variable(std::string(*ident));
+		}
+
+		return std::optional<Expression>();
+	}
+
+	std::optional<Expression> try_parse_set(TokenStream tokens) {
+		if(tokens.empty()) {
+			return std::optional<Expression>();
+		}
+
+		if(
+			   tokens.front().val != Token("[")
+			|| tokens.back() .val != Token("]")
+		) {
+			return std::optional<Expression>();
+			
+		}
+
+		const TokenStream inside = tokens.subspan(1, tokens.size() - 2);
+		size_t bracket_level = 0;
+		size_t element_start = 0;
+
+		std::vector<Spanned<Expression>> elements;
+
+		for(size_t i = 0; i < inside.size(); i++) {
+			const Spanned<Token>& tok = inside[i];
+
+			if(tok.val.as_opening().has_value()) {
+				bracket_level++;
+				continue;
+			}
+			if(tok.val.as_closing().has_value()) {
+				bracket_level--;
+				continue;
+			}
+
+			if(bracket_level != 0) {
+				continue;
+			}
+
+			if(tok.val == Token(",")) {
+				const size_t len = i - element_start;
+				const TokenStream element = inside.subspan(element_start, len);
+
+				std::optional<Spanned<Expression>> element_expr = try_parse_expression(element);
+				const Span s = span_of(element).value_or(tok.span);
+
+				if(!element_expr.has_value()) {
+					throw parser::error::expected_expression(s);
+				}
+
+				elements.push_back(std::move(*element_expr));
+				element_start = i + 1;
+			}
+		}
+
+		const size_t len = inside.size() - element_start;
+		const TokenStream element = inside.subspan(element_start, len);
+
+		if(std::optional<Spanned<Expression>> element_expr = try_parse_expression(element)) {
+			elements.push_back(std::move(*element_expr));
+		}
+
+		return Expression::set(std::move(elements));
+	}
+
+	std::optional<Expression> try_parse_function_call(TokenStream tokens) {
+		throw; // unimplemented
 	}
 }

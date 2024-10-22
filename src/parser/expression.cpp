@@ -1,4 +1,5 @@
 #include "src/parser/expression.hh"
+#include "src/error.hh"
 #include "src/parser/error.hh"
 #include "src/util.hh"
 
@@ -17,16 +18,16 @@ namespace dvel::parser {
 		return e;
 	}
 
-	Expression Expression::set(std::vector<Expression>&& vals) {
+	Expression Expression::set(std::vector<Spanned<Expression>>&& vals) {
 		Expression e;
 
 		e.m_type = Type::Set;
-		new(&e.m_set) std::vector<Expression>(std::move(vals));
+		new(&e.m_set) std::vector<Spanned<Expression>>(std::move(vals));
 
 		return e;
 	}
 
-	Expression Expression::function_call(Expression&& function, std::vector<Expression>&& args) {
+	Expression Expression::function_call(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args) {
 		Expression e;
 
 		e.m_type = Type::FunctionCall;
@@ -98,8 +99,8 @@ namespace dvel::parser {
 		std::stringstream s;
 
 		s << "Set [\n";
-		for(const Expression& e: m_elements) {
-			s << indent(e.to_string()) << ",\n";
+		for(const Spanned<Expression>& e: m_elements) {
+			s << indent(e.val.to_string()) << ",\n";
 		}
 		s << "]";
 
@@ -112,7 +113,7 @@ namespace dvel::parser {
 		s
 			<< "Call {\n"
 			<< "  function: (\n"
-			<< indent(m_function->to_string(), 2)
+			<< indent(m_function->val.to_string(), 2)
 			<< "\n  ),\n"
 			<< "  args: [";
 
@@ -123,8 +124,8 @@ namespace dvel::parser {
 			s << "\n";
 		}
 
-		for(const Expression& a: m_args) {
-			s << indent(a.to_string(), 2) << ",\n";
+		for(const Spanned<Expression>& a: m_args) {
+			s << indent(a.val.to_string(), 2) << ",\n";
 		}
 
 		s
