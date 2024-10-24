@@ -171,5 +171,7 @@ namespace dvel {
 			case Type::Symbol:
 				return m_symbol == rhs.m_symbol;
 		}
+
+		std::abort(); // unreachable
 	}
 }

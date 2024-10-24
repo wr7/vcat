@@ -2,6 +2,7 @@
 #include "src/lexer/token.hh"
 #include "src/parser/error.hh"
 #include "src/parser/expression.hh"
+#include "src/parser/util.hh"
 #include "src/parser.hh"
 
 #include <cstdlib>
@@ -91,26 +92,13 @@ namespace dvel::parser {
 		}
 
 		const TokenStream inside = tokens.subspan(1, tokens.size() - 2);
-		size_t bracket_level = 0;
 		size_t element_start = 0;
 
 		std::vector<Spanned<Expression>> elements;
 
-		for(size_t i = 0; i < inside.size(); i++) {
-			const Spanned<Token>& tok = inside[i];
-
-			if(tok.val.as_opening().has_value()) {
-				bracket_level++;
-				continue;
-			}
-			if(tok.val.as_closing().has_value()) {
-				bracket_level--;
-				continue;
-			}
-
-			if(bracket_level != 0) {
-				continue;
-			}
+		for(const Spanned<Token> *tok_ptr : NonBracketed(inside)) {
+			const Spanned<Token>& tok = *tok_ptr;
+			const size_t i = tok_ptr - inside.data();
 
 			if(tok.val == Token(",")) {
 				const size_t len = i - element_start;
