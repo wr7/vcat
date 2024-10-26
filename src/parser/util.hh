@@ -3,6 +3,7 @@
 #include "src/error.hh"
 #include "src/lexer/token.hh"
 #include "src/parser.hh"
+#include "src/util.hh"
 
 #include <cstddef>
 #include <iterator>
@@ -49,6 +50,7 @@ namespace dvel::parser {
 	};
 
 	static_assert(std::bidirectional_iterator<NonBracketedIter>);
+	static_assert(std::bidirectional_iterator<Reversed<NonBracketedIter>>);
 
 	// A range of the tokens in a `TokenStream` that aren't enclosed in brackets.
 	class NonBracketed : public std::ranges::view_base {
@@ -62,11 +64,11 @@ namespace dvel::parser {
 			constexpr NonBracketedIter end() const {
 				return NonBracketedIter(m_tokens.data() + m_tokens.size(), true);
 			}
-			constexpr NonBracketedIter rbegin() const {
-				return NonBracketedIter(m_tokens.data() - 1, true);
-			}
-			constexpr NonBracketedIter rend() const {
+			constexpr Reversed<NonBracketedIter> rbegin() const {
 				return NonBracketedIter(m_tokens.data() + m_tokens.size() - 1, false);
+			}
+			constexpr Reversed<NonBracketedIter> rend() const {
+				return NonBracketedIter(m_tokens.data() - 1, true);
 			}
 		private:
 			TokenStream m_tokens;

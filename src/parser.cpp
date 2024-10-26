@@ -5,7 +5,12 @@
 #include "src/parser/util.hh"
 #include "src/parser.hh"
 
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
 #include <cstdlib>
+#include <iostream>
+#include <ranges>
 #include <span>
 
 namespace dvel::parser {
@@ -46,7 +51,7 @@ namespace dvel::parser {
 		constexpr subfunction subfunctions[] = {
 			try_parse_variable,
 			try_parse_set,
-			// try_parse_function_call, // unimplemented
+			try_parse_function_call,
 		};
 
 		std::optional<Expression> expression;
@@ -78,7 +83,9 @@ namespace dvel::parser {
 		return std::optional<Expression>();
 	}
 
-	std::optional<Expression> try_parse_set(TokenStream tokens) {
+	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens);
+
+	std::optional<Expression> try_parse_set(TokenStream tokens) { // TODO
 		if(tokens.empty()) {
 			return std::optional<Expression>();
 		}
@@ -92,41 +99,83 @@ namespace dvel::parser {
 		}
 
 		const TokenStream inside = tokens.subspan(1, tokens.size() - 2);
-		size_t element_start = 0;
 
-		std::vector<Spanned<Expression>> elements;
-
-		for(const Spanned<Token> *tok_ptr : NonBracketed(inside)) {
-			const Spanned<Token>& tok = *tok_ptr;
-			const size_t i = tok_ptr - inside.data();
-
-			if(tok.val == Token(",")) {
-				const size_t len = i - element_start;
-				const TokenStream element = inside.subspan(element_start, len);
-
-				std::optional<Spanned<Expression>> element_expr = try_parse_expression(element);
-				const Span s = span_of(element).value_or(tok.span);
-
-				if(!element_expr.has_value()) {
-					throw parser::error::expected_expression(s);
-				}
-
-				elements.push_back(std::move(*element_expr));
-				element_start = i + 1;
-			}
-		}
-
-		const size_t len = inside.size() - element_start;
-		const TokenStream element = inside.subspan(element_start, len);
-
-		if(std::optional<Spanned<Expression>> element_expr = try_parse_expression(element)) {
-			elements.push_back(std::move(*element_expr));
-		}
+		std::vector<Spanned<Expression>> elements = parse_expression_list(inside);
 
 		return Expression::set(std::move(elements));
 	}
 
 	std::optional<Expression> try_parse_function_call(TokenStream tokens) {
-		throw; // unimplemented
+		auto iter = std::ranges::subrange(
+			NonBracketed(tokens).rbegin(),
+			NonBracketed(tokens).rend()
+		);
+
+		if(iter.empty()) {
+			return std::optional<Expression>();
+		}
+
+		const Spanned<Token> *closing_paren = *iter.begin();
+		const size_t          closing_idx   = closing_paren - tokens.data();
+
+		if(closing_paren->val != Token(")")) {
+			return std::optional<Expression>();
+		}
+
+		iter = iter.next();
+
+		assert(!iter.empty());
+
+		const Spanned<Token> *opening_paren = *iter.begin();
+		const size_t          opening_idx   = opening_paren - tokens.data();
+
+		assert(opening_paren->val == Token("("));
+
+		TokenStream function_tokens = tokens.subspan(0, opening_idx);
+		std::optional<Spanned<Expression>> function = try_parse_expression(function_tokens);
+
+		if(!function.has_value()) {
+			std::abort(); // UNREACHABLE (this case should be caught by parse_parenthesis)
+		}
+
+		TokenStream params_tokens = tokens.subspan(opening_idx + 1, closing_idx - opening_idx - 1);
+		std::vector<Spanned<Expression>> params = parse_expression_list(params_tokens);
+
+		return Expression::function_call(std::move(*function), std::move(params));
+	}
+
+	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens) {
+		std::vector<Spanned<Expression>> expressions;
+
+		size_t expr_start = 0;
+
+		for(const Spanned<Token> *tok_ptr : NonBracketed(tokens)) {
+			const Spanned<Token>& tok = *tok_ptr;
+			const size_t i = tok_ptr - tokens.data();
+
+			if(tok.val == Token(",")) {
+				const size_t len = i - expr_start;
+				const TokenStream expr_tokens = tokens.subspan(expr_start, len);
+
+				std::optional<Spanned<Expression>> expr = try_parse_expression(expr_tokens);
+				const Span s = span_of(expr_tokens).value_or(tok.span);
+
+				if(!expr.has_value()) {
+					throw parser::error::expected_expression(s);
+				}
+
+				expressions.push_back(std::move(*expr));
+				expr_start = i + 1;
+			}
+		}
+
+		const size_t len = tokens.size() - expr_start;
+		const TokenStream expr_tokens = tokens.subspan(expr_start, len);
+
+		if(std::optional<Spanned<Expression>> expr = try_parse_expression(expr_tokens)) {
+			expressions.push_back(std::move(*expr));
+		}
+
+		return expressions;
 	}
 }
