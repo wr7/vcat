@@ -18,6 +18,15 @@ namespace dvel::parser {
 		return e;
 	}
 
+	Expression Expression::string(std::string &&name) {
+		Expression e;
+
+		e.m_type = Type::String;
+		new(&e.m_string) std::string(std::move(name));
+
+		return e;
+	}
+
 	Expression Expression::set(std::vector<Spanned<Expression>>&& vals) {
 		Expression e;
 
@@ -44,6 +53,14 @@ namespace dvel::parser {
 		return m_variable;
 	}
 
+	std::optional<std::string_view> Expression::as_string() const {
+		if(m_type != Type::String) {
+			return std::optional<std::string_view>();
+		}
+
+		return m_string;
+	}
+
 	OptionalRef<const Set> Expression::as_set() const {
 		if(m_type != Type::Set) {
 			return OptionalRef<const Set>();
@@ -64,6 +81,8 @@ namespace dvel::parser {
 		switch(m_type) {
 			case Type::Variable:
 				m_variable.std::string::~string(); return;
+			case Type::String:
+				m_string.std::string::~string();   return;
 			case Type::Set:
 				m_set.~Set();                      return;
 			case Type::FunctionCall:
@@ -79,6 +98,9 @@ namespace dvel::parser {
 		switch(old.m_type) {
 			case Type::Variable:
 				new(&m_variable) std::string(std::move(old.m_variable));
+				return;
+			case Type::String:
+				new(&m_string) std::string(std::move(old.m_string));
 				return;
 			case Type::Set:
 				new(&m_set) Set(std::move(old.m_set));
@@ -139,6 +161,8 @@ namespace dvel::parser {
 		switch(m_type) {
 			case Type::Variable:
 				return std::format("Variable({})", m_variable);
+			case Type::String:
+				return std::format("String({})", m_variable);
 			case Type::Set:
 				return m_set.to_string();
 			case Type::FunctionCall:

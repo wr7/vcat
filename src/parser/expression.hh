@@ -33,12 +33,14 @@ namespace dvel::parser {
 	class Expression {
 		public:
 			static Expression variable(std::string&&);
+			static Expression string(std::string&&);
 			static Expression set(std::vector<Spanned<Expression>>&&);
 			static Expression function_call(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args);
 
 			std::string to_string() const;
 
 			std::optional<std::string_view> as_variable() const;
+			std::optional<std::string_view> as_string() const;
 			OptionalRef<const Set> as_set() const;
 			OptionalRef<const FunctionCall> as_function_call() const;
 
@@ -49,6 +51,7 @@ namespace dvel::parser {
 
 			enum struct Type {
 				Variable,
+				String,
 				Set,
 				FunctionCall,
 			};
@@ -57,6 +60,7 @@ namespace dvel::parser {
 
 			union {
 				std::string  m_variable;
+				std::string  m_string;
 				Set          m_set;
 				FunctionCall m_function_call;
 			};

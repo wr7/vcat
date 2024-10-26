@@ -50,6 +50,7 @@ namespace dvel::parser {
 		typedef std::optional<Expression> (*subfunction)(TokenStream);
 		constexpr subfunction subfunctions[] = {
 			try_parse_variable,
+			try_parse_string,
 			try_parse_function_call,
 			try_parse_set,
 		};
@@ -78,6 +79,18 @@ namespace dvel::parser {
 
 		if(std::optional<std::string_view> ident = tokens.front().val.as_identifier()) {
 			return Expression::variable(std::string(*ident));
+		}
+
+		return std::optional<Expression>();
+	}
+
+	std::optional<Expression> try_parse_string(TokenStream tokens) {
+		if(tokens.size() != 1) {
+			return std::optional<Expression>();
+		}
+
+		if(std::optional<std::string_view> ident = tokens.front().val.as_string()) {
+			return Expression::string(std::string(*ident));
 		}
 
 		return std::optional<Expression>();
