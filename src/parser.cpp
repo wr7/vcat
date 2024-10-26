@@ -50,8 +50,8 @@ namespace dvel::parser {
 		typedef std::optional<Expression> (*subfunction)(TokenStream);
 		constexpr subfunction subfunctions[] = {
 			try_parse_variable,
-			try_parse_set,
 			try_parse_function_call,
+			try_parse_set,
 		};
 
 		std::optional<Expression> expression;
@@ -85,17 +85,27 @@ namespace dvel::parser {
 
 	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens);
 
-	std::optional<Expression> try_parse_set(TokenStream tokens) { // TODO
-		if(tokens.empty()) {
+	std::optional<Expression> try_parse_set(TokenStream tokens) {
+		auto iter = std::ranges::subrange(
+			NonBracketed(tokens).begin(),
+			NonBracketed(tokens).end()
+		);
+
+		if(iter.empty()) {
 			return std::optional<Expression>();
 		}
 
-		if(
-			   tokens.front().val != Token("[")
-			|| tokens.back() .val != Token("]")
-		) {
+		if((*iter.begin())->val != Token("[")) {
 			return std::optional<Expression>();
-			
+		}
+
+		iter.advance(1);
+		assert(!iter.empty());
+		assert((*iter.begin())->val == Token("]"));
+
+		const Spanned<Token> *closing_bracket = *iter.begin();
+		if(closing_bracket + 1 != tokens.data() + tokens.size()) {
+			return std::optional<Expression>();
 		}
 
 		const TokenStream inside = tokens.subspan(1, tokens.size() - 2);
