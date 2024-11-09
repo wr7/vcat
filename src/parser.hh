@@ -15,6 +15,7 @@ namespace dvel::parser {
 
 	std::optional<Expression> try_parse_variable(TokenStream tokens);
 	std::optional<Expression> try_parse_string(TokenStream tokens);
+	std::optional<Expression> try_parse_parenthized_expression(TokenStream tokens);
 	std::optional<Expression> try_parse_set(TokenStream tokens);
 	std::optional<Expression> try_parse_function_call(TokenStream tokens);
 }

@@ -51,6 +51,7 @@ namespace dvel::parser {
 		constexpr subfunction subfunctions[] = {
 			try_parse_variable,
 			try_parse_string,
+			try_parse_parenthized_expression,
 			try_parse_function_call,
 			try_parse_set,
 		};
@@ -94,6 +95,43 @@ namespace dvel::parser {
 		}
 
 		return std::optional<Expression>();
+	}
+
+	std::optional<Expression> try_parse_parenthized_expression(TokenStream tokens) {
+		auto iter = std::ranges::subrange(
+			NonBracketed(tokens).begin(),
+			NonBracketed(tokens).end()
+		);
+
+		if(iter.empty()) {
+			return std::optional<Expression>();
+		}
+
+		if((*iter.begin())->val != Token("(")) {
+			return std::optional<Expression>();
+		}
+
+		iter.advance(1);
+
+		assert(!iter.empty());
+
+		const Spanned<Token> *closing_paren = *iter.begin();
+		const size_t          closing_idx   = closing_paren - tokens.data();
+
+		assert(closing_paren->val == Token(")"));
+
+		if(closing_idx + 1 != tokens.size()) {
+			return std::optional<Expression>();
+		}
+
+		TokenStream inside = tokens.subspan(1, tokens.size() - 2);
+		std::optional<Spanned<Expression>> expr = try_parse_expression(inside);
+
+		if(!expr) {
+			return std::optional<Expression>();
+		}
+
+		return std::move(expr->val);
 	}
 
 	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens);
@@ -158,7 +196,7 @@ namespace dvel::parser {
 		std::optional<Spanned<Expression>> function = try_parse_expression(function_tokens);
 
 		if(!function.has_value()) {
-			std::abort(); // UNREACHABLE (this case should be caught by parse_parenthesis)
+			return std::optional<Expression>();
 		}
 
 		TokenStream params_tokens = tokens.subspan(opening_idx + 1, closing_idx - opening_idx - 1);
