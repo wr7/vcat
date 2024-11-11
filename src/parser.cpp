@@ -5,13 +5,12 @@
 #include "src/parser/util.hh"
 #include "src/parser.hh"
 
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>
-#include <iostream>
 #include <ranges>
 #include <span>
+#include <string>
 
 namespace dvel::parser {
 	void verify_brackets(std::span<const Spanned<Token>> tokens) {
@@ -54,6 +53,7 @@ namespace dvel::parser {
 			try_parse_parenthized_expression,
 			try_parse_function_call,
 			try_parse_set,
+			try_parse_field_access,
 		};
 
 		std::optional<Expression> expression;
@@ -203,6 +203,28 @@ namespace dvel::parser {
 		std::vector<Spanned<Expression>> params = parse_expression_list(params_tokens);
 
 		return Expression::function_call(std::move(*function), std::move(params));
+	}
+
+	std::optional<Expression> try_parse_field_access(TokenStream tokens) {
+		if(tokens.size() < 3) {
+			return std::optional<Expression>();
+		}
+
+		const std::optional<std::string_view> rhs = tokens.back().val.as_identifier();
+		if(!rhs) {
+			return std::optional<Expression>();
+		}
+		const Span rhs_span = tokens.back().span;
+
+		if(tokens[tokens.size() - 2].val != Token(".")) {
+			return std::optional<Expression>();
+		}
+
+		const TokenStream lhs_tok = tokens.subspan(0, tokens.size() - 2);
+		std::optional<Spanned<Expression>> lhs = try_parse_expression(lhs_tok);
+		assert(lhs);
+
+		return Expression::field_access(std::move(*lhs), Spanned(std::string(*rhs), rhs_span));
 	}
 
 	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens) {

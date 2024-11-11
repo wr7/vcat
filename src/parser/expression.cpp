@@ -45,6 +45,15 @@ namespace dvel::parser {
 		return e;
 	}
 
+	Expression Expression::field_access(Spanned<Expression>&& lhs, Spanned<std::string>&& rhs) {
+		Expression e;
+
+		e.m_type = Type::FieldAccess;
+		new(&e.m_field_access) FieldAccess(std::move(lhs), std::move(rhs));
+
+		return e;
+	}
+
 	std::optional<std::string_view> Expression::as_variable() const {
 		if(m_type != Type::Variable) {
 			return std::optional<std::string_view>();
@@ -87,6 +96,8 @@ namespace dvel::parser {
 				m_set.~Set();                      return;
 			case Type::FunctionCall:
 				m_function_call.~FunctionCall();   return;
+			case Type::FieldAccess:
+				m_field_access.~FieldAccess();     return;
 		}
 
 		std::abort(); // unreachable
@@ -107,6 +118,9 @@ namespace dvel::parser {
 				return;
 			case Type::FunctionCall:
 				new(&m_function_call) FunctionCall(std::move(old.m_function_call));
+				return;
+			case Type::FieldAccess:
+				new(&m_field_access) FieldAccess(std::move(old.m_field_access));
 				return;
 		}
 
@@ -157,6 +171,20 @@ namespace dvel::parser {
 		return std::move(s).str();
 	}
 
+	std::string FieldAccess::to_string() const {
+		std::stringstream s;
+
+		s
+			<< "FieldAccess {\n"
+			<< "  lhs: (\n"
+			<< indent(m_lhs->val.to_string(), 2)
+			<< "\n  ),\n"
+			<< "  rhs: \"" << m_rhs.val << "\"\n"
+			<< "}";
+
+		return std::move(s).str();
+	}
+
 	std::string Expression::to_string() const {
 		switch(m_type) {
 			case Type::Variable:
@@ -167,6 +195,8 @@ namespace dvel::parser {
 				return m_set.to_string();
 			case Type::FunctionCall:
 				return m_function_call.to_string();
+			case Type::FieldAccess:
+				return m_field_access.to_string();
 		}
 
 		std::abort(); // unreachable

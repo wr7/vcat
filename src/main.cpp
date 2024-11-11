@@ -11,7 +11,7 @@ using dvel::Token;
 using dvel::parser::Expression;
 
 int main() {
-	std::string_view input_test = R"--([videos, (process)(cool_video, foo(), "abba"), [other1, other2], other3])--";
+	std::string_view input_test = R"--([videos, v.process(cool_video, foo(), "abba"), [other1, other2], other3])--";
 	dvel::Lexer lexer = dvel::Lexer(input_test);
 
 	std::vector<Spanned<Token>> tokens;

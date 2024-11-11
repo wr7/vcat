@@ -4,6 +4,7 @@
 #include "src/util.hh"
 
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -17,6 +18,19 @@ namespace dvel::parser {
 
 			std::string to_string() const;
 			std::vector<Spanned<Expression>> m_elements;
+	};
+
+	struct FieldAccess {
+		public:
+			FieldAccess() = delete;
+			FieldAccess(FieldAccess&) = delete;
+			FieldAccess(FieldAccess&&) = default;
+			inline FieldAccess(Spanned<Expression>&& lhs, Spanned<std::string>&& rhs);
+
+			std::string to_string() const;
+
+			std::unique_ptr<Spanned<Expression>> m_lhs;
+			Spanned<std::string>                 m_rhs;
 	};
 
 	struct FunctionCall {
@@ -36,6 +50,7 @@ namespace dvel::parser {
 			static Expression string(std::string&&);
 			static Expression set(std::vector<Spanned<Expression>>&&);
 			static Expression function_call(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args);
+			static Expression field_access(Spanned<Expression>&& lhs, Spanned<std::string>&& rhs);
 
 			std::string to_string() const;
 
@@ -54,6 +69,7 @@ namespace dvel::parser {
 				String,
 				Set,
 				FunctionCall,
+				FieldAccess,
 			};
 
 			Type m_type;
@@ -63,10 +79,16 @@ namespace dvel::parser {
 				std::string  m_string;
 				Set          m_set;
 				FunctionCall m_function_call;
+				FieldAccess  m_field_access;
 			};
 	};
 
 	inline FunctionCall::FunctionCall(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args)
 		: m_function(new Spanned<Expression>(std::move(function)))
 		, m_args(std::move(args)) {}
+
+	inline FieldAccess::FieldAccess(Spanned<Expression>&& lhs, Spanned<std::string>&& rhs)
+		: m_lhs(new Spanned<Expression>(std::move(lhs)))
+		, m_rhs(std::move(rhs))
+		{}
 }
