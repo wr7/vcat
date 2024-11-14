@@ -1,3 +1,5 @@
+#pragma once
+
 #include "src/error.hh"
 
 using Hint = dvel::Diagnostic::Hint;
