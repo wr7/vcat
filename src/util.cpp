@@ -53,4 +53,15 @@ namespace dvel {
 		m_nbytes += nbytes;
 		m_hasher.add(data, nbytes);
 	}
+	std::ostream& operator<<(std::ostream& s, const dvel::PartiallyEscaped& p) {
+		for(char c: p.m_inner) {
+			if(c == '\\' || c == '"') {
+				s << '\\';
+			}
+
+			s << c;
+		}
+
+		return s;
+	}
 }

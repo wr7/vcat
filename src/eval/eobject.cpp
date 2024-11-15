@@ -1,9 +1,13 @@
 #include "src/eval/eobject.hh"
 #include "sha256.h"
 #include "src/util.hh"
+#include <cerrno>
 #include <cstdint>
+#include <cstring>
+#include <format>
 #include <fstream>
 #include <ios>
+#include <sstream>
 #include <string>
 
 namespace dvel {
@@ -13,6 +17,7 @@ namespace dvel {
 		hasher.add((uint64_t) 32);
 	}
 
+	// NOTE: throws `std::string` upon IO failure
 	VideoFile::VideoFile(std::string&& path) : m_path(std::move(path)) {
 		std::ifstream f;
 		f.open(m_path, std::ios_base::in | std::ios_base::binary);
@@ -24,7 +29,7 @@ namespace dvel {
 		SHA256 hasher;
 
 		while(f.good()) {
-			size_t num_bytes = f.read(&buf[0], 512).gcount();
+			size_t num_bytes = f.read(&buf[0], sizeof(buf)).gcount();
 
 			hasher.add(&buf[0], num_bytes);
 		}
@@ -32,9 +37,18 @@ namespace dvel {
 		hasher.getHash(m_file_hash);
 
 		if(f.fail()) {
-			throw errno; // 😭
+			throw std::format("Failed to open file `{}`: {}", path, strerror(errno));
 		}
 
 		f.close();
+	}
+
+	std::string VideoFile::to_string() const {
+		std::stringstream s;
+		s << "VideoFile(\""
+			<< PartiallyEscaped(m_path)
+			<< "\")";
+
+		return s.str();
 	}
 }

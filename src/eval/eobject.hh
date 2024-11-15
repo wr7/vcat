@@ -2,13 +2,13 @@
 
 #include "src/util.hh"
 
-#include <fstream>
 #include <string>
 #include <type_traits>
 
 namespace dvel {
 	class EObject {
 		virtual void hash(dvel::Hasher& hash) const = 0;
+		virtual std::string to_string() const = 0;
 	};
 	static_assert(std::is_abstract<EObject>());
 
@@ -16,6 +16,7 @@ namespace dvel {
 		public:
 			VideoFile() = delete;
 			void hash(dvel::Hasher& hash) const;
+			std::string to_string() const;
 
 			VideoFile(std::string&& path);
 
