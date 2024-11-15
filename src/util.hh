@@ -1,13 +1,28 @@
 #pragma once
 
+#include "sha256.h"
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace dvel {
 	template <typename T> using OptionalRef = std::optional<std::reference_wrapper<T>>;
 	std::string indent(std::string&& input, size_t level = 1);
+
+	class Hasher {
+		public:
+			consteval size_t pos() const {return m_nbytes;}
+
+			void add(const void*data, size_t nbytes);
+			void add(std::string_view string);
+			void add(uint64_t data);
+		private:
+			SHA256 m_hasher;
+			std::size_t m_nbytes = 0;
+	};
 
 	template <std::bidirectional_iterator T>
 	class Reversed {
