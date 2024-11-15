@@ -24,7 +24,11 @@ source_files = [
  ,'src/parser/util.cpp'
 ]
 
+hash_inc = include_directories('deps/hash-library')
+hash_lib = static_library('hash_library', 'deps/hash-library/sha256.cpp')
+hash_library = declare_dependency(link_with: hash_lib, include_directories: hash_inc)
+
 executable('dvel'
           ,source_files
-          ,dependencies: ffmpeg_deps
+          ,dependencies: ffmpeg_deps + hash_library
           ,install : true)

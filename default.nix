@@ -1,7 +1,8 @@
 {pkgs ? import <nixpkgs> {}}:
 
-pkgs.mkShell {
+pkgs.mkShellNoCC {
 	buildInputs = with pkgs; [
+		gcc
 		clang-tools
 		meson
 		ninja
