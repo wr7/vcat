@@ -1,22 +1,44 @@
 #pragma once
 
+#include "src/error.hh"
 #include "src/util.hh"
 
+#include <functional>
+#include <memory>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 namespace dvel {
+	class EObject;
+	class ESet;
+
+	using ESetRef = std::reference_wrapper<ESet>;
+
 	class EObject {
-		virtual void hash(dvel::Hasher& hash) const = 0;
-		virtual std::string to_string() const = 0;
+		public:
+			// Adds the object to a hasher
+			//
+			// NOTE: To prevent hash collisions, every object should be of the following form:
+			// 1. An underscore
+			// 2. Some unique type identifier (that does not contain underscores)
+			// 3. Another underscore
+			// 4. Data that uniquely represents a particular instance of the type
+			// 5. The size of the above data as a big endian 64 bit integer
+			virtual void hash(dvel::Hasher& hasher) const = 0;
+			virtual std::string to_string() const = 0;
+			virtual std::string type_name() const = 0;
+			virtual bool callable();
+			virtual std::unique_ptr<EObject> operator()(Spanned<ESetRef> args);
 	};
 	static_assert(std::is_abstract<EObject>());
 
 	class VideoFile : EObject {
 		public:
 			VideoFile() = delete;
-			void hash(dvel::Hasher& hash) const;
+			void hash(dvel::Hasher& hasher) const;
 			std::string to_string() const;
+			std::string type_name() const;
 
 			VideoFile(std::string&& path);
 
@@ -25,5 +47,19 @@ namespace dvel {
 			std::string m_path;
 	};
 	static_assert(!std::is_abstract<VideoFile>());
+
+	class ESet : EObject {
+		public:
+			void hash(dvel::Hasher& hasher) const;
+			std::string to_string() const;
+			std::string type_name() const;
+
+			constexpr ESet(std::vector<Spanned<std::unique_ptr<EObject>>>&& elements)
+				: m_elements(std::move(elements)) {}
+
+		private:
+			std::vector<Spanned<std::unique_ptr<EObject>>> m_elements;
+	};
+	static_assert(!std::is_abstract<ESet>());
 }
 

@@ -26,7 +26,7 @@ namespace dvel {
 
 	class Hasher {
 		public:
-			consteval size_t pos() const {return m_nbytes;}
+			constexpr size_t pos() const {return m_nbytes;}
 
 			void add(const void*data, size_t nbytes);
 			void add(std::string_view string);

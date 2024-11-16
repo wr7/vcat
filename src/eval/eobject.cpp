@@ -1,5 +1,7 @@
 #include "src/eval/eobject.hh"
 #include "sha256.h"
+#include "src/error.hh"
+#include "src/eval/error.hh"
 #include "src/util.hh"
 #include <cerrno>
 #include <cstdint>
@@ -7,14 +9,23 @@
 #include <format>
 #include <fstream>
 #include <ios>
+#include <memory>
 #include <sstream>
 #include <string>
 
 namespace dvel {
+	bool EObject::callable() {
+		return false;
+	}
+
+	std::unique_ptr<EObject> EObject::operator()(Spanned<ESetRef> args) {
+		throw eval::error::uncallable_object(*this, args.span);
+	}
+
 	void VideoFile::hash(Hasher& hasher) const {
-		hasher.add("videofile_");
+		hasher.add("_videofile_");
 		hasher.add(&m_file_hash, sizeof(m_file_hash));
-		hasher.add((uint64_t) 32);
+		hasher.add((uint64_t) sizeof(m_file_hash));
 	}
 
 	// NOTE: throws `std::string` upon IO failure
@@ -50,5 +61,47 @@ namespace dvel {
 			<< "\")";
 
 		return s.str();
+	}
+
+	std::string VideoFile::type_name() const {
+		return "VideoFile";
+	}
+
+	void ESet::hash(dvel::Hasher& hasher) const {
+		hasher.add("_set_");
+		const size_t inner_start = hasher.pos();
+
+		for(const Spanned<std::unique_ptr<EObject>>& element : m_elements) {
+			element.val->hash(hasher);
+		}
+
+		hasher.add((uint64_t) (hasher.pos() - inner_start));
+	}
+
+	std::string ESet::to_string() const {
+		std::stringstream s;
+		if(m_elements.size() <= 1) {
+			s << "[";
+			if(!m_elements.empty()) {
+				s << m_elements[0].val->to_string();
+			}
+			s << "]";
+
+			return s.str();
+		}
+
+		s << "[\n";
+
+		for(const Spanned<std::unique_ptr<EObject>>& element : m_elements) {
+			s << indent(element.val->to_string()) << ",\n";
+		}
+
+		s << "]";
+
+		return s.str();
+	}
+
+	std::string ESet::type_name() const {
+		return "Set";
 	}
 }
