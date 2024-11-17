@@ -3,6 +3,7 @@
 #include "src/error.hh"
 #include "src/util.hh"
 
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
@@ -14,6 +15,7 @@ namespace dvel {
 	class EList;
 
 	using EListRef = std::reference_wrapper<EList>;
+	using builtin_function = std::unique_ptr<EObject> (*)(Spanned<EListRef> args);
 
 	class EObject {
 		public:
@@ -28,10 +30,40 @@ namespace dvel {
 			virtual void hash(dvel::Hasher& hasher) const = 0;
 			virtual std::string to_string() const = 0;
 			virtual std::string type_name() const = 0;
-			virtual bool callable();
+
+			virtual bool callable() const;
 			virtual std::unique_ptr<EObject> operator()(Spanned<EListRef> args);
 	};
 	static_assert(std::is_abstract<EObject>());
+
+	template<builtin_function f, StringLiteral name>
+	class BuiltinFunction : EObject {
+		public:
+			inline void hash(dvel::Hasher& hasher) const {
+				constexpr StringLiteral prefix = "_builtin_" + name;
+				hasher.add(*prefix);
+				hasher.add((uint64_t) name.size());
+			}
+
+			inline std::string to_string() const {
+				constexpr StringLiteral s = "builtin(" + name + ")";
+				return std::string(*s);
+			}
+
+			inline std::string type_name() const {
+				constexpr StringLiteral tname = "builtin_" + name;
+
+				return std::string(*tname);
+			}
+
+			inline bool callable() const {
+				return true;
+			}
+
+			std::unique_ptr<EObject> operator()(Spanned<EListRef> args) {
+				return f(args);
+			}
+	};
 
 	class VideoFile : EObject {
 		public:

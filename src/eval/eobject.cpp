@@ -14,7 +14,7 @@
 #include <string>
 
 namespace dvel {
-	bool EObject::callable() {
+	bool EObject::callable() const {
 		return false;
 	}
 

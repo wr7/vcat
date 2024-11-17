@@ -1,6 +1,8 @@
 #pragma once
 
 #include "sha256.h"
+#include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -35,6 +37,64 @@ namespace dvel {
 			SHA256 m_hasher;
 			std::size_t m_nbytes = 0;
 	};
+
+	// String type for use as a template argument. Note: `len` includes the null byte.
+	//
+	// Also overloads the `+` operator for compile-time string concatenation
+	template<size_t len>
+	class StringLiteral {
+		public:
+			consteval StringLiteral() {
+				for(size_t i = 0; i < len; i++) {
+					m_data[i] = '\0';
+				}
+			}
+
+			consteval StringLiteral(const char (&str)[len]) {
+				std::copy_n(str, len, m_data);
+			}
+
+			consteval size_t size() const {
+				assert(len >= 1);
+				assert(m_data[len - 1] == '\0');
+
+				return len - 1;
+			}
+
+			constexpr std::string_view operator*() const {
+				assert(len >= 1);
+				assert(m_data[len - 1] == '\0');
+
+				return std::string_view(m_data, len - 1);
+			}
+
+			template<size_t rhs_len>
+			consteval StringLiteral<len + rhs_len - 1> operator+(StringLiteral<rhs_len> rhs) {
+				StringLiteral<len + rhs_len - 1> result;
+
+				assert(len >= 1);
+				assert(rhs_len >= 1);
+				assert(m_data[len - 1] == '\0');
+				assert(rhs.m_data[rhs_len - 1] == '\0');
+
+				std::copy_n(m_data, len - 1, result.m_data);
+				std::copy_n(rhs.m_data, rhs_len, result.m_data + len - 1);
+
+				return result;
+			}
+
+			template<size_t rhs_len>
+			consteval StringLiteral<len + rhs_len - 1> operator+(const char(&rhs)[rhs_len]) {
+				return *this + StringLiteral<rhs_len>(rhs);
+			}
+
+			char m_data[len];
+	};
+
+	template<size_t lhs_len, size_t rhs_len>
+	consteval StringLiteral<lhs_len + rhs_len - 1> operator+(const char(&lhs)[lhs_len], StringLiteral<rhs_len> rhs) {
+		return StringLiteral(lhs) + rhs;
+	}
 
 	template <std::bidirectional_iterator T>
 	class Reversed {
