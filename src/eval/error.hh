@@ -3,6 +3,8 @@
 #include "src/error.hh"
 #include "src/eval/eobject.hh"
 #include <format>
+#include <functional>
+#include <optional>
 
 namespace dvel::eval::error {
 	using Hint = Diagnostic::Hint;
@@ -15,5 +17,32 @@ namespace dvel::eval::error {
 			}
 		);
 	}
+
+	inline Diagnostic expected_file_path(Span s, std::optional<std::reference_wrapper<const EObject>> other) {
+		if(!other.has_value()) {
+			return Diagnostic(
+				"Expected file path",
+				{
+					Hint::error("", s)
+				}
+			);
+		}
+		return Diagnostic(
+			std::format("Expected file path (String); got `{}`", other->get().type_name()),
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
+	inline Diagnostic unexpected_arguments(Span s) {
+		return Diagnostic(
+			"Unexpected argument(s)",
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
 }
 

@@ -37,7 +37,7 @@ namespace dvel {
 	static_assert(std::is_abstract<EObject>());
 
 	template<builtin_function f, StringLiteral name>
-	class BuiltinFunction : EObject {
+	class BuiltinFunction : public EObject {
 		public:
 			inline void hash(dvel::Hasher& hasher) const {
 				constexpr StringLiteral prefix = "_builtin_" + name;
@@ -65,13 +65,14 @@ namespace dvel {
 			}
 	};
 
-	class VideoFile : EObject {
+	class VideoFile : public EObject {
 		public:
 			VideoFile() = delete;
 			void hash(dvel::Hasher& hasher) const;
 			std::string to_string() const;
 			std::string type_name() const;
 
+			// NOTE: throws `std::string` upon IO failure
 			VideoFile(std::string&& path);
 
 		private:
@@ -80,7 +81,7 @@ namespace dvel {
 	};
 	static_assert(!std::is_abstract<VideoFile>());
 
-	class EList : EObject {
+	class EList : public EObject {
 		public:
 			void hash(dvel::Hasher& hasher) const;
 			std::string to_string() const;
@@ -89,12 +90,16 @@ namespace dvel {
 			constexpr EList(std::vector<Spanned<std::unique_ptr<EObject>>>&& elements)
 				: m_elements(std::move(elements)) {}
 
+			constexpr std::span<const Spanned<std::unique_ptr<EObject>>> elements() const {
+				return m_elements;
+			}
+
 		private:
 			std::vector<Spanned<std::unique_ptr<EObject>>> m_elements;
 	};
 	static_assert(!std::is_abstract<EList>());
 
-	class EString : EObject {
+	class EString : public EObject {
 		public:
 			void hash(dvel::Hasher& hasher) const;
 			std::string to_string() const;
@@ -102,6 +107,10 @@ namespace dvel {
 
 			constexpr EString(std::string&& s)
 				: m_string(std::move(s)) {}
+
+			constexpr std::string_view operator*() const {
+				return m_string;
+			}
 
 		private:
 			std::string m_string;

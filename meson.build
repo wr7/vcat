@@ -15,6 +15,7 @@ ffmpeg_deps = [
 
 source_files = [
   'src/main.cpp'
+ ,'src/eval/builtins.cpp'
  ,'src/eval/eobject.cpp'
  ,'src/util.cpp'
  ,'src/error.cpp'
