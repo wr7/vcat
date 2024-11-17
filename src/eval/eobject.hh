@@ -61,5 +61,19 @@ namespace dvel {
 			std::vector<Spanned<std::unique_ptr<EObject>>> m_elements;
 	};
 	static_assert(!std::is_abstract<EList>());
+
+	class EString : EObject {
+		public:
+			void hash(dvel::Hasher& hasher) const;
+			std::string to_string() const;
+			std::string type_name() const;
+
+			constexpr EString(std::string&& s)
+				: m_string(std::move(s)) {}
+
+		private:
+			std::string m_string;
+	};
+	static_assert(!std::is_abstract<EString>());
 }
 

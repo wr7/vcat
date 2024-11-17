@@ -104,4 +104,24 @@ namespace dvel {
 	std::string EList::type_name() const {
 		return "List";
 	}
+
+	void EString::hash(dvel::Hasher& hasher) const {
+		hasher.add("_string_");
+		hasher.add(m_string);
+		hasher.add((uint64_t) m_string.size());
+	}
+
+	std::string EString::to_string() const {
+		std::stringstream s;
+
+		s << '"'
+		  << PartiallyEscaped(m_string)
+		  << '"';
+
+		return s.str();
+	}
+
+	std::string EString::type_name() const {
+		return "String";
+	}
 }
