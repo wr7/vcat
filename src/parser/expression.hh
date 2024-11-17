@@ -11,10 +11,10 @@
 namespace dvel::parser {
 	class Expression;
 
-	struct Set {
+	struct List {
 		public:
-			Set(Set&) = delete;
-			Set(Set&&) = default;
+			List(List&) = delete;
+			List(List&&) = default;
 
 			std::string to_string() const;
 			std::vector<Spanned<Expression>> m_elements;
@@ -48,7 +48,7 @@ namespace dvel::parser {
 		public:
 			static Expression variable(std::string&&);
 			static Expression string(std::string&&);
-			static Expression set(std::vector<Spanned<Expression>>&&);
+			static Expression list(std::vector<Spanned<Expression>>&&);
 			static Expression function_call(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args);
 			static Expression field_access(Spanned<Expression>&& lhs, Spanned<std::string>&& rhs);
 
@@ -56,7 +56,7 @@ namespace dvel::parser {
 
 			std::optional<std::string_view> as_variable() const;
 			std::optional<std::string_view> as_string() const;
-			OptionalRef<const Set> as_set() const;
+			OptionalRef<const List> as_list() const;
 			OptionalRef<const FunctionCall> as_function_call() const;
 
 			Expression(Expression&&);
@@ -67,7 +67,7 @@ namespace dvel::parser {
 			enum struct Type {
 				Variable,
 				String,
-				Set,
+				List,
 				FunctionCall,
 				FieldAccess,
 			};
@@ -77,7 +77,7 @@ namespace dvel::parser {
 			union {
 				std::string  m_variable;
 				std::string  m_string;
-				Set          m_set;
+				List         m_list;
 				FunctionCall m_function_call;
 				FieldAccess  m_field_access;
 			};

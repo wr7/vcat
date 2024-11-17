@@ -27,11 +27,11 @@ namespace dvel::parser {
 		return e;
 	}
 
-	Expression Expression::set(std::vector<Spanned<Expression>>&& vals) {
+	Expression Expression::list(std::vector<Spanned<Expression>>&& vals) {
 		Expression e;
 
-		e.m_type = Type::Set;
-		new(&e.m_set) std::vector<Spanned<Expression>>(std::move(vals));
+		e.m_type = Type::List;
+		new(&e.m_list) std::vector<Spanned<Expression>>(std::move(vals));
 
 		return e;
 	}
@@ -70,12 +70,12 @@ namespace dvel::parser {
 		return m_string;
 	}
 
-	OptionalRef<const Set> Expression::as_set() const {
-		if(m_type != Type::Set) {
-			return OptionalRef<const Set>();
+	OptionalRef<const List> Expression::as_list() const {
+		if(m_type != Type::List) {
+			return OptionalRef<const List>();
 		}
 
-		return std::cref(m_set);
+		return std::cref(m_list);
 	}
 
 	OptionalRef<const FunctionCall> Expression::as_function_call() const {
@@ -92,8 +92,8 @@ namespace dvel::parser {
 				m_variable.std::string::~string(); return;
 			case Type::String:
 				m_string.std::string::~string();   return;
-			case Type::Set:
-				m_set.~Set();                      return;
+			case Type::List:
+				m_list.~List();                      return;
 			case Type::FunctionCall:
 				m_function_call.~FunctionCall();   return;
 			case Type::FieldAccess:
@@ -113,8 +113,8 @@ namespace dvel::parser {
 			case Type::String:
 				new(&m_string) std::string(std::move(old.m_string));
 				return;
-			case Type::Set:
-				new(&m_set) Set(std::move(old.m_set));
+			case Type::List:
+				new(&m_list) List(std::move(old.m_list));
 				return;
 			case Type::FunctionCall:
 				new(&m_function_call) FunctionCall(std::move(old.m_function_call));
@@ -127,14 +127,14 @@ namespace dvel::parser {
 		std::abort(); // unreachable
 	}
 
-	std::string Set::to_string() const {
+	std::string List::to_string() const {
 		if(m_elements.empty()) {
-			return "Set []\n";
+			return "List []\n";
 		}
 
 		std::stringstream s;
 
-		s << "Set [\n";
+		s << "List [\n";
 		for(const Spanned<Expression>& e: m_elements) {
 			s << indent(e.val.to_string()) << ",\n";
 		}
@@ -191,8 +191,8 @@ namespace dvel::parser {
 				return std::format("Variable({})", m_variable);
 			case Type::String:
 				return std::format("String({})", m_variable);
-			case Type::Set:
-				return m_set.to_string();
+			case Type::List:
+				return m_list.to_string();
 			case Type::FunctionCall:
 				return m_function_call.to_string();
 			case Type::FieldAccess:

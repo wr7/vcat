@@ -18,7 +18,7 @@ namespace dvel {
 		return false;
 	}
 
-	std::unique_ptr<EObject> EObject::operator()(Spanned<ESetRef> args) {
+	std::unique_ptr<EObject> EObject::operator()(Spanned<EListRef> args) {
 		throw eval::error::uncallable_object(*this, args.span);
 	}
 
@@ -67,8 +67,8 @@ namespace dvel {
 		return "VideoFile";
 	}
 
-	void ESet::hash(dvel::Hasher& hasher) const {
-		hasher.add("_set_");
+	void EList::hash(dvel::Hasher& hasher) const {
+		hasher.add("_list_");
 		const size_t inner_start = hasher.pos();
 
 		for(const Spanned<std::unique_ptr<EObject>>& element : m_elements) {
@@ -78,7 +78,7 @@ namespace dvel {
 		hasher.add((uint64_t) (hasher.pos() - inner_start));
 	}
 
-	std::string ESet::to_string() const {
+	std::string EList::to_string() const {
 		std::stringstream s;
 		if(m_elements.size() <= 1) {
 			s << "[";
@@ -101,7 +101,7 @@ namespace dvel {
 		return s.str();
 	}
 
-	std::string ESet::type_name() const {
-		return "Set";
+	std::string EList::type_name() const {
+		return "List";
 	}
 }

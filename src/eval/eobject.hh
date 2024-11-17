@@ -11,9 +11,9 @@
 
 namespace dvel {
 	class EObject;
-	class ESet;
+	class EList;
 
-	using ESetRef = std::reference_wrapper<ESet>;
+	using EListRef = std::reference_wrapper<EList>;
 
 	class EObject {
 		public:
@@ -29,7 +29,7 @@ namespace dvel {
 			virtual std::string to_string() const = 0;
 			virtual std::string type_name() const = 0;
 			virtual bool callable();
-			virtual std::unique_ptr<EObject> operator()(Spanned<ESetRef> args);
+			virtual std::unique_ptr<EObject> operator()(Spanned<EListRef> args);
 	};
 	static_assert(std::is_abstract<EObject>());
 
@@ -48,18 +48,18 @@ namespace dvel {
 	};
 	static_assert(!std::is_abstract<VideoFile>());
 
-	class ESet : EObject {
+	class EList : EObject {
 		public:
 			void hash(dvel::Hasher& hasher) const;
 			std::string to_string() const;
 			std::string type_name() const;
 
-			constexpr ESet(std::vector<Spanned<std::unique_ptr<EObject>>>&& elements)
+			constexpr EList(std::vector<Spanned<std::unique_ptr<EObject>>>&& elements)
 				: m_elements(std::move(elements)) {}
 
 		private:
 			std::vector<Spanned<std::unique_ptr<EObject>>> m_elements;
 	};
-	static_assert(!std::is_abstract<ESet>());
+	static_assert(!std::is_abstract<EList>());
 }
 

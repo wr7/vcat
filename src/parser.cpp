@@ -52,7 +52,7 @@ namespace dvel::parser {
 			try_parse_string,
 			try_parse_parenthized_expression,
 			try_parse_function_call,
-			try_parse_set,
+			try_parse_list,
 			try_parse_field_access,
 		};
 
@@ -136,7 +136,7 @@ namespace dvel::parser {
 
 	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens);
 
-	std::optional<Expression> try_parse_set(TokenStream tokens) {
+	std::optional<Expression> try_parse_list(TokenStream tokens) {
 		auto iter = std::ranges::subrange(
 			NonBracketed(tokens).begin(),
 			NonBracketed(tokens).end()
@@ -163,7 +163,7 @@ namespace dvel::parser {
 
 		std::vector<Spanned<Expression>> elements = parse_expression_list(inside);
 
-		return Expression::set(std::move(elements));
+		return Expression::list(std::move(elements));
 	}
 
 	std::optional<Expression> try_parse_function_call(TokenStream tokens) {
