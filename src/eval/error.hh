@@ -13,7 +13,7 @@ namespace dvel::eval::error {
 		return Diagnostic(
 			std::format("Cannot call uncallable object of type `{}`", object.type_name()),
 			{
-				Hint::error("Opening bracket here", span)
+				Hint::error("", span)
 			}
 		);
 	}
