@@ -44,5 +44,13 @@ namespace dvel::eval::error {
 		);
 	}
 
+	inline Diagnostic undefined_variable(Spanned<std::string_view> s) {
+		return Diagnostic(
+			std::format("Undefined variable {}", s.val),
+			{
+				Hint::error("", s.span)
+			}
+		);
+	}
 }
 

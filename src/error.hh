@@ -1,11 +1,14 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace dvel {
@@ -56,6 +59,17 @@ namespace dvel {
 			constexpr inline Spanned<T>(T val, Span span): val(std::move(val)), span(span) {};
 			T val;
 			Span span;
+
+			// C++'s lambda syntax is so bad that this probably isn't worth using like 99% of the time.
+			template<typename F> // 😭
+			inline Spanned<typename std::result_of<F(const T&)>::type> map(F f) const {
+				return Spanned<typename std::result_of<F(const T&)>::type>(f(val), span);
+			}
+
+			// Converts a `const Spanned<T>&` into a `Spanned<const T&>`
+			constexpr Spanned<const T&> as_cref() const {
+				return Spanned<const T&>(val, span);
+			}
 	};
 
 	template<typename T>

@@ -1,9 +1,13 @@
 #include "src/error.hh"
+#include "src/eval/eobject.hh"
+#include "src/eval/eval.hh"
 #include "src/lexer.hh"
 #include "src/lexer/token.hh"
 #include "src/parser.hh"
 #include "src/parser/expression.hh"
+#include "src/util.hh"
 #include <iostream>
+#include <memory>
 #include <string_view>
 
 using dvel::Spanned;
@@ -11,7 +15,7 @@ using dvel::Token;
 using dvel::parser::Expression;
 
 int main() {
-	std::string_view input_test = R"--([videos, v.process(cool_video, foo(), "abba"), [other1, other2], other3])--";
+	std::string_view input_test = R"--([vopen("prism.mp4"), "prism.mp4"])--";
 	dvel::Lexer lexer = dvel::Lexer(input_test);
 
 	std::vector<Spanned<Token>> tokens;
@@ -28,7 +32,14 @@ int main() {
 			return 0;
 		}
 
-		std::cout << expression->val.to_string() << "\n";
+		std::unique_ptr<dvel::EObject> object = dvel::eval::evaluate_expression(expression->as_cref());
+		std::cout << object->to_string() << "\n";
+		dvel::Hasher hasher;
+
+		object->hash(hasher);
+
+		std::cout << "hash: " << hasher.as_string() << "\n";
+
 	} catch (dvel::Diagnostic d) {
 		std::cout << '\n' << d.render(input_test) << '\n';
 	}

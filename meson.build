@@ -17,6 +17,7 @@ source_files = [
   'src/main.cpp'
  ,'src/eval/builtins.cpp'
  ,'src/eval/eobject.cpp'
+ ,'src/eval/eval.cpp'
  ,'src/util.cpp'
  ,'src/error.cpp'
  ,'src/lexer.cpp'

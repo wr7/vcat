@@ -59,11 +59,6 @@ namespace dvel::parser {
 			OptionalRef<const List> as_list() const;
 			OptionalRef<const FunctionCall> as_function_call() const;
 
-			Expression(Expression&&);
-			~Expression();
-		private:
-			constexpr Expression() {}
-
 			enum struct Type {
 				Variable,
 				String,
@@ -71,6 +66,15 @@ namespace dvel::parser {
 				FunctionCall,
 				FieldAccess,
 			};
+
+			constexpr Type type() const {
+				return m_type;
+			}
+
+			Expression(Expression&&);
+			~Expression();
+		private:
+			constexpr Expression() {}
 
 			Type m_type;
 

@@ -47,8 +47,8 @@ namespace dvel {
 
 		hasher.getHash(m_file_hash);
 
-		if(f.fail()) {
-			throw std::format("Failed to open file `{}`: {}", path, strerror(errno));
+		if(f.bad()) {
+			throw std::format("Failed to open file `{}`: {}", m_path, strerror(errno));
 		}
 
 		f.close();

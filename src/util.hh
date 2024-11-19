@@ -33,6 +33,10 @@ namespace dvel {
 			void add(const void*data, size_t nbytes);
 			void add(std::string_view string);
 			void add(uint64_t data);
+
+			inline std::string as_string() {
+				return m_hasher.getHash();
+			}
 		private:
 			SHA256 m_hasher;
 			std::size_t m_nbytes = 0;
