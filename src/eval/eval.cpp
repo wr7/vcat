@@ -58,6 +58,6 @@ namespace dvel::eval {
 		}
 
 		EList args = EList(std::move(args_v));
-		return (*lhs.get())(Spanned(std::ref(args), call.span)); // TODO: get rid of reference wrapper
+		return (*lhs.get())(Spanned<EList&>(args, call.span));
 	}
 }

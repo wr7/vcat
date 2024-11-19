@@ -14,8 +14,7 @@ namespace dvel {
 	class EObject;
 	class EList;
 
-	using EListRef = std::reference_wrapper<EList>;
-	using builtin_function = std::unique_ptr<EObject> (*)(Spanned<EListRef> args);
+	using builtin_function = std::unique_ptr<EObject> (*)(Spanned<EList&> args);
 
 	class EObject {
 		public:
@@ -32,7 +31,7 @@ namespace dvel {
 			virtual std::string type_name() const = 0;
 
 			virtual bool callable() const;
-			virtual std::unique_ptr<EObject> operator()(Spanned<EListRef> args);
+			virtual std::unique_ptr<EObject> operator()(Spanned<EList&> args);
 	};
 	static_assert(std::is_abstract<EObject>());
 
@@ -60,7 +59,7 @@ namespace dvel {
 				return true;
 			}
 
-			std::unique_ptr<EObject> operator()(Spanned<EListRef> args) {
+			std::unique_ptr<EObject> operator()(Spanned<EList&> args) {
 				return f(args);
 			}
 	};

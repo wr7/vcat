@@ -18,7 +18,7 @@ namespace dvel {
 		return false;
 	}
 
-	std::unique_ptr<EObject> EObject::operator()(Spanned<EListRef> args) {
+	std::unique_ptr<EObject> EObject::operator()(Spanned<EList &> args) {
 		throw eval::error::uncallable_object(*this, args.span);
 	}
 

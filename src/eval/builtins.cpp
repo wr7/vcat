@@ -9,8 +9,8 @@
 
 namespace dvel::eval::builtins {
 	// Opens a video file
-	std::unique_ptr<EObject> vopen(Spanned<EListRef> args) {
-		const std::span<const Spanned<std::unique_ptr<EObject>>> elements = args.val.get().elements();
+	std::unique_ptr<EObject> vopen(Spanned<EList&> args) {
+		const std::span<const Spanned<std::unique_ptr<EObject>>> elements = args.val.elements();
 
 		if(elements.empty()) {
 			throw eval::error::expected_file_path(args.span, {});

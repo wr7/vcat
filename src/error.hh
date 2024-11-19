@@ -3,7 +3,6 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
-#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -56,7 +55,7 @@ namespace dvel {
 	template <typename T>
 	class Spanned {
 		public:
-			constexpr inline Spanned<T>(T val, Span span): val(std::move(val)), span(span) {};
+			constexpr inline Spanned<T>(T val, Span span): val(std::forward<T>(val)), span(span) {};
 			T val;
 			Span span;
 
