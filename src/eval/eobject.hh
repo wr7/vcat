@@ -4,7 +4,6 @@
 #include "src/util.hh"
 
 #include <cstring>
-#include <functional>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -63,22 +62,6 @@ namespace dvel {
 				return f(args);
 			}
 	};
-
-	class VideoFile : public EObject {
-		public:
-			VideoFile() = delete;
-			void hash(dvel::Hasher& hasher) const;
-			std::string to_string() const;
-			std::string type_name() const;
-
-			// NOTE: throws `std::string` upon IO failure
-			VideoFile(std::string&& path);
-
-		private:
-			uint8_t m_file_hash[32];
-			std::string m_path;
-	};
-	static_assert(!std::is_abstract<VideoFile>());
 
 	class EList : public EObject {
 		public:

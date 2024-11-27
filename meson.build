@@ -3,14 +3,14 @@ project('dvel', 'cpp',
   default_options : ['warning_level=3', 'cpp_std=c++20'])
 
 ffmpeg_deps = [
-  # dependency('libswscale'),
-  # dependency('libavutil'),
-  # dependency('libavdevice'),
-  # dependency('libavformat'),
-  # dependency('libpostproc'),
-  # dependency('libavcodec'),
-  # dependency('libavfilter'),
-  # dependency('libswresample')
+  dependency('libswscale'),
+  dependency('libavutil'),
+  dependency('libavdevice'),
+  dependency('libavformat'),
+  dependency('libpostproc'),
+  dependency('libavcodec'),
+  dependency('libavfilter'),
+  dependency('libswresample')
 ]
 
 source_files = [
@@ -18,6 +18,7 @@ source_files = [
  ,'src/eval/builtins.cpp'
  ,'src/eval/eobject.cpp'
  ,'src/eval/eval.cpp'
+ ,'src/filter/filter.cpp'
  ,'src/util.cpp'
  ,'src/error.cpp'
  ,'src/lexer.cpp'
@@ -33,5 +34,5 @@ hash_library = declare_dependency(link_with: hash_lib, include_directories: hash
 
 executable('dvel'
           ,source_files
-          ,dependencies: ffmpeg_deps + hash_library
+          ,dependencies: ffmpeg_deps + [hash_library]
           ,install : true)

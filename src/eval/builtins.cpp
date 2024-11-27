@@ -1,6 +1,7 @@
 #include "src/error.hh"
 #include "src/eval/eobject.hh"
 #include "src/eval/error.hh"
+#include "src/filter/filter.hh"
 #include "src/eval/builtins.hh"
 
 #include <memory>
@@ -27,7 +28,7 @@ namespace dvel::eval::builtins {
 		}
 
 		try {
-			return std::unique_ptr<EObject>(new VideoFile(std::string(**path_ptr)));
+			return std::unique_ptr<EObject>(new dvel::filter::VideoFile(std::string(**path_ptr)));
 		} catch(std::string err) {
 			throw Diagnostic(std::move(err), {Diagnostic::Hint::error("", args.span)});
 		}
