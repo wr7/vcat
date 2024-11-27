@@ -27,7 +27,7 @@ namespace dvel::eval {
 	}
 
 	std::unique_ptr<EObject> evaluate_string(Spanned<std::string_view> str) {
-		return std::unique_ptr<EObject>(new EString(std::string(str.val)));
+		return std::make_unique<EString>(std::string(str.val));
 	}
 
 	std::unique_ptr<EObject> evaluate_list(Spanned<const parser::List&> expr) {
@@ -37,12 +37,12 @@ namespace dvel::eval {
 			elements_v.push_back(Spanned(evaluate_expression(expr.as_cref()), expr.span));
 		}
 
-		return std::unique_ptr<EObject>(new EList(std::move(elements_v)));
+		return std::make_unique<EList>(std::move(elements_v));
 	}
 
 	std::unique_ptr<EObject> evaluate_variable(Spanned<std::string_view> expr) {
 		if(expr.val == "vopen") {
-			return std::unique_ptr<EObject>(new BuiltinFunction<builtins::vopen, "vopen">());
+			return std::make_unique<BuiltinFunction<builtins::vopen, "vopen">>();
 		}
 
 		throw error::undefined_variable(expr);

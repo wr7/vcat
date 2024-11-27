@@ -88,11 +88,11 @@ namespace dvel::parser {
 	};
 
 	inline FunctionCall::FunctionCall(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args)
-		: m_function(new Spanned<Expression>(std::move(function)))
+		: m_function(std::make_unique<Spanned<Expression>>(std::move(function)))
 		, m_args(std::move(args)) {}
 
 	inline FieldAccess::FieldAccess(Spanned<Expression>&& lhs, Spanned<std::string>&& rhs)
-		: m_lhs(new Spanned<Expression>(std::move(lhs)))
+		: m_lhs(std::make_unique<Spanned<Expression>>(std::move(lhs)))
 		, m_rhs(std::move(rhs))
 		{}
 }

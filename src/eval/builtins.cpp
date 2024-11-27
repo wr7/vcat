@@ -28,7 +28,7 @@ namespace dvel::eval::builtins {
 		}
 
 		try {
-			return std::unique_ptr<EObject>(new dvel::filter::VideoFile(std::string(**path_ptr)));
+			return std::make_unique<dvel::filter::VideoFile>(std::string(**path_ptr));
 		} catch(std::string err) {
 			throw Diagnostic(std::move(err), {Diagnostic::Hint::error("", args.span)});
 		}
