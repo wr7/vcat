@@ -23,6 +23,7 @@ source_files = [
  ,'src/error.cpp'
  ,'src/lexer.cpp'
  ,'src/lexer/token.cpp'
+ ,'src/muxing.cpp'
  ,'src/parser.cpp'
  ,'src/parser/expression.cpp'
  ,'src/parser/util.cpp'

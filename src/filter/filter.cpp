@@ -9,6 +9,7 @@
 #include <fstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 extern "C" {
 	#include <libavformat/avformat.h>
@@ -72,6 +73,10 @@ namespace dvel::filter {
 					avformat_open_input(&m_ctx, path.data(), NULL, NULL)
 				);
 
+				error::handle_ffmpeg_error(m_span,
+					avformat_find_stream_info(m_ctx, NULL)
+				);
+
 				assert(m_ctx);
 			}
 
@@ -84,6 +89,15 @@ namespace dvel::filter {
 				error::handle_ffmpeg_error(m_span, ret_code);
 
 				return true;
+			}
+
+			std::vector<AVStream *> streams() {
+				std::vector<AVStream *> retval;
+				retval.resize(m_ctx->nb_streams);
+
+				std::memcpy(retval.data(), m_ctx->streams, m_ctx->nb_streams * sizeof(AVStream *));
+
+				return retval;
 			}
 
 			~VideoFileSource() {

@@ -3,6 +3,7 @@
 #include "src/eval/eval.hh"
 #include "src/lexer.hh"
 #include "src/lexer/token.hh"
+#include "src/muxing.hh"
 #include "src/parser.hh"
 #include "src/parser/expression.hh"
 #include "src/util.hh"
@@ -15,7 +16,7 @@ using dvel::Token;
 using dvel::parser::Expression;
 
 int main() {
-	std::string_view input_test = R"--([vopen("prism.mp4"), "prism.mp4"])--";
+	std::string_view input_test = R"--(vopen("prism.mp4"))--";
 	dvel::Lexer lexer = dvel::Lexer(input_test);
 
 	std::vector<Spanned<Token>> tokens;
@@ -39,6 +40,8 @@ int main() {
 		object->hash(hasher);
 
 		std::cout << "hash: " << hasher.as_string() << "\n";
+
+		dvel::muxing::write_output(Spanned<dvel::EObject&>(*object.get(), expression->span));
 
 	} catch (dvel::Diagnostic d) {
 		std::cout << '\n' << d.render(input_test) << '\n';

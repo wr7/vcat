@@ -13,6 +13,7 @@ namespace dvel::filter {
 		public:
 			// Gets the next packet or returns false if `EOF` is reached
 			virtual bool next_pkt(AVPacket *packet) = 0;
+			virtual std::vector<AVStream *> streams() = 0;
 	};
 
 	class VFilter : public EObject {
