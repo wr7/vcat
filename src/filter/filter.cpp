@@ -1,8 +1,11 @@
 #include "src/filter/filter.hh"
 #include "src/error.hh"
 #include "src/filter/error.hh"
+#include "src/util.hh"
 #include <cassert>
+#include <cstdint>
 #include <cstring>
+#include <deque>
 #include <format>
 #include <memory>
 #include <sstream>
@@ -67,7 +70,7 @@ namespace dvel::filter {
 			VideoFileSource() = delete;
 
 			VideoFileSource(std::string_view path, Span span)
-				: m_ctx(NULL) 
+				: m_ctx(NULL)
 				, m_span(span) {
 				error::handle_ffmpeg_error(m_span,
 					avformat_open_input(&m_ctx, path.data(), NULL, NULL)
@@ -111,5 +114,102 @@ namespace dvel::filter {
 
 	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span s) const {
 		return std::make_unique<VideoFileSource>(m_path, s);
+	}
+
+	void Concat::hash(Hasher& hasher) const {
+		hasher.add("_concat-filter_");
+		const size_t start = hasher.pos();
+
+		for(const auto& video : m_videos) {
+			video.val->hash(hasher);
+		}
+
+		hasher.add((uint64_t) (hasher.pos() - start));
+	}
+
+	std::string Concat::to_string() const {
+		std::stringstream s;
+
+		std::string_view separator = m_videos.size() > 1 ? ",\n" : "";
+
+		s << "Concat(";
+
+		if(m_videos.size() > 1) {
+			s << '\n';
+		}
+
+		for(const auto& video : m_videos) {
+			s
+				<< indent(video.val->to_string())
+				<< separator;
+		}
+
+		s << ")";
+
+		return s.str();
+	}
+
+	std::string Concat::type_name() const {
+		return "Concat";
+	}
+
+	class ConcatSource : public PacketSource {
+		public:
+			ConcatSource() = delete;
+
+			ConcatSource(std::span<const Spanned<std::unique_ptr<VFilter>>> videos, Span span)
+				: m_span(span)
+				, m_offset(0)
+				, m_last_pkt_pts(0)
+				, m_last_pkt_dur(0) {
+				for(const auto& video : videos) {
+					m_videos.push_back(Spanned(video->get()->get_pkts(video.span), video.span));
+					assert(m_videos.back()->get()->streams().size() == 1);
+				}
+
+				m_streams = m_videos[0]->get()->streams();
+			}
+
+			bool next_pkt(AVPacket *packet) {
+				for(;;) {
+					if(m_videos.empty()) {
+						return false;
+					}
+
+					if(m_videos[0]->get()->next_pkt(packet)) {
+						break;
+					} else {
+						m_offset = m_last_pkt_pts + m_last_pkt_dur;
+						m_videos.pop_front();
+					}
+				}
+
+				packet->pts += m_offset;
+				packet->dts += m_offset;
+
+				if(packet->pts >= m_last_pkt_pts) {
+					m_last_pkt_pts = packet->pts;
+					m_last_pkt_dur = packet->duration;
+				}
+
+				return true;
+			}
+
+			std::vector<AVStream *> streams() {
+				return m_streams;
+			}
+
+		private:
+			std::deque<Spanned<std::unique_ptr<PacketSource>>> m_videos;
+			std::vector<AVStream *>                             m_streams;
+			[[maybe_unused]]
+			Span                                                m_span;
+			int64_t                                             m_offset;
+			int64_t                                             m_last_pkt_pts;
+			int64_t                                             m_last_pkt_dur;
+	};
+
+	std::unique_ptr<PacketSource> Concat::get_pkts(Span s) const {
+		return std::make_unique<ConcatSource>(m_videos, s);
 	}
 }

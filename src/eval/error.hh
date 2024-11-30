@@ -52,5 +52,14 @@ namespace dvel::eval::error {
 			}
 		);
 	}
+
+	inline Diagnostic expected_video(EObject& object, Span span) {
+		return Diagnostic(
+			std::format("Expected video; got object of type `{}`", object.type_name()),
+			{
+				Hint::error("", span)
+			}
+		);
+	}
 }
 

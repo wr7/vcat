@@ -7,6 +7,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -68,6 +69,22 @@ namespace dvel {
 			// Converts a `const Spanned<T>&` into a `Spanned<const T&>`
 			constexpr Spanned<const T&> as_cref() const {
 				return Spanned<const T&>(val, span);
+			}
+
+			constexpr const std::remove_cvref_t<T> *operator->() const {
+				return &val;
+			}
+
+			constexpr std::remove_cvref_t<T> *operator->() {
+				return &val;
+			}
+
+			constexpr std::add_lvalue_reference_t<T> operator*() {
+				return val;
+			}
+
+			constexpr std::add_lvalue_reference_t<std::add_const_t<T>> operator*() const {
+				return val;
 			}
 	};
 

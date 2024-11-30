@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <utility>
 
 namespace dvel::eval::builtins {
 	// Opens a video file
@@ -32,6 +33,23 @@ namespace dvel::eval::builtins {
 		} catch(std::string err) {
 			throw Diagnostic(std::move(err), {Diagnostic::Hint::error("", args.span)});
 		}
+	}
+
+	std::unique_ptr<EObject> concat(Spanned<EList&> args) {
+		std::vector<Spanned<std::unique_ptr<filter::VFilter>>> videos;
+
+		for(const auto& arg : args->elements()) {
+			EObject *arg_ptr = arg->get();
+
+			filter::VFilter *video = dynamic_cast<filter::VFilter *>(arg_ptr);
+			if(!video) {
+				throw error::expected_video(**arg, arg.span);
+			}
+
+			videos.push_back(Spanned(video->clone(), arg.span));
+		}
+
+		return std::make_unique<filter::Concat>(std::move(videos), args.span);
 	}
 }
 

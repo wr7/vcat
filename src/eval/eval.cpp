@@ -44,6 +44,9 @@ namespace dvel::eval {
 		if(expr.val == "vopen") {
 			return std::make_unique<BuiltinFunction<builtins::vopen, "vopen">>();
 		}
+		if(expr.val == "concat") {
+			return std::make_unique<BuiltinFunction<builtins::concat, "concat">>();
+		}
 
 		throw error::undefined_variable(expr);
 	}

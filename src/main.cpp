@@ -16,7 +16,14 @@ using dvel::Token;
 using dvel::parser::Expression;
 
 int main() {
-	std::string_view input_test = R"--(vopen("prism.mp4"))--";
+	std::string_view input_test = R"--(
+		concat(
+			vopen("prism.mp4"),
+			vopen("prism.mp4"),
+			vopen("prism.mp4"),
+			vopen("prism.mp4"),
+		)
+	)--";
 	dvel::Lexer lexer = dvel::Lexer(input_test);
 
 	std::vector<Spanned<Token>> tokens;

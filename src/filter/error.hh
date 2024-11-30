@@ -20,6 +20,15 @@ namespace dvel::filter::error {
 		);
 	}
 
+	inline Diagnostic expected_video_got_none(Span s) {
+		return Diagnostic(
+			"Expected video parameter; got none",
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
 	inline void handle_ffmpeg_error(Span s, int err_code) {
 		if(err_code < 0) {
 			char msg[AV_ERROR_MAX_STRING_SIZE] = {0};
