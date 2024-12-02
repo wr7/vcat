@@ -29,6 +29,15 @@ namespace dvel::filter::error {
 		);
 	}
 
+	inline Diagnostic no_pts(Span s) {
+		return Diagnostic(
+			"No pts value found for frame",
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
 	inline void handle_ffmpeg_error(Span s, int err_code) {
 		if(err_code < 0) {
 			char msg[AV_ERROR_MAX_STRING_SIZE] = {0};

@@ -22,7 +22,7 @@ namespace dvel::muxing {
 		}
 
 		std::unique_ptr<filter::PacketSource> source = filter->get_pkts(span);
-		std::vector<AVStream *> streams = source->streams();
+		std::span<AVStream *> streams = source->streams();
 
 		AVFormatContext *output = nullptr;
 		error::handle_ffmpeg_error(
@@ -56,7 +56,7 @@ namespace dvel::muxing {
 			packet ? 0 : AVERROR_UNKNOWN
 		);
 
-		while(source->next_pkt(packet)) {
+		while(source->next_pkt(&packet)) {
 			AVStream *istream = streams[packet->stream_index];
 			AVStream *ostream = output->streams[packet->stream_index];
 

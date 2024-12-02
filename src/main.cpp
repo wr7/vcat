@@ -15,13 +15,16 @@ using dvel::Spanned;
 using dvel::Token;
 using dvel::parser::Expression;
 
+// TODO:
+// - create custom AVStream object used for PacketSource::streams()
+// - support multiple streams with concat filter
+// - automatically re-encode when using concat filter
+
 int main() {
 	std::string_view input_test = R"--(
 		concat(
 			vopen("prism.mp4"),
-			vopen("prism.mp4"),
-			vopen("prism.mp4"),
-			vopen("prism.mp4"),
+			vopen("prism3.mp4"),
 		)
 	)--";
 	dvel::Lexer lexer = dvel::Lexer(input_test);

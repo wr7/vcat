@@ -3,19 +3,27 @@
 #include "src/filter/error.hh"
 #include "src/util.hh"
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <deque>
 #include <format>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <fstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 extern "C" {
 	#include <libavformat/avformat.h>
+	#include <libavcodec/packet.h>
+	#include <libavutil/avutil.h>
+	#include <libavutil/buffer.h>
+	#include <libavutil/mathematics.h>
+	#include <libavutil/rational.h>
 	#include <libavutil/error.h>
 }
 
@@ -83,8 +91,9 @@ namespace dvel::filter {
 				assert(m_ctx);
 			}
 
-			bool next_pkt(AVPacket *packet) {
-				int ret_code = av_read_frame(m_ctx, packet);
+			bool next_pkt(AVPacket **packet) {
+				int ret_code = av_read_frame(m_ctx, *packet);
+
 				if(ret_code == AVERROR_EOF) {
 					return false;
 				}
@@ -94,13 +103,8 @@ namespace dvel::filter {
 				return true;
 			}
 
-			std::vector<AVStream *> streams() {
-				std::vector<AVStream *> retval;
-				retval.resize(m_ctx->nb_streams);
-
-				std::memcpy(retval.data(), m_ctx->streams, m_ctx->nb_streams * sizeof(AVStream *));
-
-				return retval;
+			std::span<AVStream *> streams() {
+				return std::span<AVStream *>(m_ctx->streams, m_ctx->nb_streams);
 			}
 
 			~VideoFileSource() {
@@ -158,31 +162,102 @@ namespace dvel::filter {
 			ConcatSource() = delete;
 
 			ConcatSource(std::span<const Spanned<std::unique_ptr<VFilter>>> videos, Span span)
-				: m_span(span)
+				: m_idx(0)
+				, m_first_packet(true)
+				, m_next(nullptr)
+				, m_has_next(false)
+				, m_prev_pkt_raw_pts(0)
+				, m_span(span)
 				, m_offset(0)
 				, m_last_pkt_pts(0)
 				, m_last_pkt_dur(0) {
 				for(const auto& video : videos) {
 					m_videos.push_back(Spanned(video->get()->get_pkts(video.span), video.span));
-					assert(m_videos.back()->get()->streams().size() == 1);
 				}
 
-				m_streams = m_videos[0]->get()->streams();
+				for(const auto& stream : m_videos[0]->get()->streams()) {
+					AVStream *new_stream = (AVStream *) std::malloc(sizeof(*new_stream));
+					std::memcpy(new_stream, stream, sizeof(*new_stream));
+
+					new_stream->time_base = av_make_q(1, 90000);
+					new_stream->start_time = 0;
+
+					m_ostreams.push_back(new_stream);
+				}
 			}
 
-			bool next_pkt(AVPacket *packet) {
+			bool next_pkt(AVPacket **p_packet) {
+				if(m_has_next) {
+					std::swap(*p_packet, m_next);
+					m_has_next = false;
+					goto start;
+				}
+
 				for(;;) {
-					if(m_videos.empty()) {
+					if(m_idx >= m_videos.size()) {
 						return false;
 					}
 
-					if(m_videos[0]->get()->next_pkt(packet)) {
+					if(m_videos[m_idx]->get()->next_pkt(p_packet)) {
 						break;
 					} else {
+						m_first_packet = true;
+						m_prev_pkt_raw_pts = 0;
 						m_offset = m_last_pkt_pts + m_last_pkt_dur;
-						m_videos.pop_front();
+						m_idx++;
 					}
 				}
+
+				start:
+
+				AVPacket *packet = *p_packet;
+
+				const int64_t start_time = m_videos[m_idx]->get()->streams()[packet->stream_index]->start_time;
+
+				if(start_time == AV_NOPTS_VALUE || packet->pts == AV_NOPTS_VALUE) {
+					throw error::no_pts(m_span);
+				}
+
+				packet->pts -= start_time;
+				packet->dts -= start_time;
+				m_prev_pkt_raw_pts = packet->pts;
+
+				assert((*p_packet)->pts >= 0);
+
+				// Because some streams have negative dts, and naively allowing that may result in a non-
+				// monotonous dts, we're going to reconstruct dts based on pts, but we don't want to break
+				// B-frames.
+				if(m_first_packet || (packet->flags & AV_PKT_FLAG_DISPOSABLE)) {
+					packet->dts = packet->pts; // for non-reference frames/the first frame, this is really easy
+				} else {
+					if(!m_next) {
+						m_next = av_packet_alloc();
+						error::handle_ffmpeg_error(m_span, m_next ? 0 : AVERROR_UNKNOWN);
+					}
+
+					if(m_videos[m_idx]->get()->next_pkt(&m_next)) {
+						m_has_next = true;
+
+						if(m_next->flags & AV_PKT_FLAG_DISPOSABLE) {
+							// we will assume that the next packet is a B frame and that it is the first frame (pts-wise)
+							// that depends on this frame
+
+							// ceiling average that does not overflow
+							packet->dts = m_prev_pkt_raw_pts / 2 + m_next->pts / 2 + ((m_prev_pkt_raw_pts ^ m_next->pts) & 1);
+						} else {
+							packet->dts = packet->pts;
+						}
+					} else {
+						packet->dts = packet->pts;
+					}
+				}
+
+				const AVRational old_tb = m_videos[m_idx]->get()->streams()[packet->stream_index]->time_base;
+				const AVRational new_tb = av_make_q(1, 90000); // C++ compound literals 😭
+
+				packet->pts = av_rescale_q(packet->pts, old_tb, new_tb);
+				packet->dts = av_rescale_q(packet->dts, old_tb, new_tb);
+				packet->duration = av_rescale_q(packet->duration, old_tb, new_tb);
 
 				packet->pts += m_offset;
 				packet->dts += m_offset;
@@ -192,16 +267,35 @@ namespace dvel::filter {
 					m_last_pkt_dur = packet->duration;
 				}
 
+				m_first_packet = false;
+
 				return true;
 			}
 
-			std::vector<AVStream *> streams() {
-				return m_streams;
+			std::span<AVStream *> streams() {
+				return m_ostreams;
+			}
+
+			~ConcatSource() {
+				for(const auto& ostream : m_ostreams) {
+					std::free(ostream);
+				}
+
+				if(m_next) {
+					av_packet_free(&m_next);
+				}
 			}
 
 		private:
-			std::deque<Spanned<std::unique_ptr<PacketSource>>> m_videos;
-			std::vector<AVStream *>                             m_streams;
+			std::vector<Spanned<std::unique_ptr<PacketSource>>> m_videos;
+			std::vector<AVStream *>                             m_ostreams;
+			size_t                                              m_idx;
+
+			bool                                                m_first_packet;
+			AVPacket                                           *m_next;
+			bool                                                m_has_next; // whether the next packet is stored in `m_next`
+			int64_t                                             m_prev_pkt_raw_pts;
+
 			[[maybe_unused]]
 			Span                                                m_span;
 			int64_t                                             m_offset;

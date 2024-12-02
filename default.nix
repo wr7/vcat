@@ -7,6 +7,6 @@ pkgs.mkShellNoCC {
 		meson
 		ninja
 		pkg-config
-		ffmpeg-headless.dev
+		ffmpeg.dev
 	];
 }
