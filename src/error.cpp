@@ -6,7 +6,7 @@
 #include <string_view>
 #include <algorithm>
 
-namespace dvel {
+namespace vcat {
 	// Helper class for rendering diagnostics; functionality is publicly accessable via the
 	// `Diagnostic::render` method.
 	class DiagnosticRenderer {

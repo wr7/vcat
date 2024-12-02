@@ -9,7 +9,7 @@
 #include <sstream>
 #include <string>
 
-namespace dvel {
+namespace vcat {
 	bool EObject::callable() const {
 		return false;
 	}
@@ -18,7 +18,7 @@ namespace dvel {
 		throw eval::error::uncallable_object(*this, args.span);
 	}
 
-	void EList::hash(dvel::Hasher& hasher) const {
+	void EList::hash(vcat::Hasher& hasher) const {
 		hasher.add("_list_");
 		const size_t inner_start = hasher.pos();
 
@@ -56,7 +56,7 @@ namespace dvel {
 		return "List";
 	}
 
-	void EString::hash(dvel::Hasher& hasher) const {
+	void EString::hash(vcat::Hasher& hasher) const {
 		hasher.add("_string_");
 		hasher.add(m_string);
 		hasher.add((uint64_t) m_string.size());

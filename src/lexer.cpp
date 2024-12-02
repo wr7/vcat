@@ -4,9 +4,9 @@
 #include <optional>
 #include <string_view>
 
-using Hint = dvel::Diagnostic::Hint;
+using Hint = vcat::Diagnostic::Hint;
 
-namespace dvel {
+namespace vcat {
 	std::optional<Spanned<Token>> Lexer::next() {
 		for(;;) {
 			if(m_remaining_idx >= m_src.length()) {

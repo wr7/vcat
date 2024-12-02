@@ -3,7 +3,7 @@
 #include "src/lexer/token.hh"
 #include <cstddef>
 
-namespace dvel::parser {
+namespace vcat::parser {
 	NonBracketedIter& NonBracketedIter::operator++() {
 		if(m_nonexistant) {
 			m_nonexistant = false;

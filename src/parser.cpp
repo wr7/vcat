@@ -12,7 +12,7 @@
 #include <span>
 #include <string>
 
-namespace dvel::parser {
+namespace vcat::parser {
 	void verify_brackets(std::span<const Spanned<Token>> tokens) {
 		std::vector<Spanned<BracketType>> opening_brackets;
 

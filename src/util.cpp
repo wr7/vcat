@@ -14,7 +14,7 @@
 #  define be64toh(x) betoh64(x)
 #endif
 
-namespace dvel {
+namespace vcat {
 	std::string indent(std::string&& input, size_t level) {
 		for(size_t i = input.length() - 1;;) {
 			if(input[i] == '\n') {
@@ -53,7 +53,7 @@ namespace dvel {
 		m_nbytes += nbytes;
 		m_hasher.add(data, nbytes);
 	}
-	std::ostream& operator<<(std::ostream& s, const dvel::PartiallyEscaped& p) {
+	std::ostream& operator<<(std::ostream& s, const vcat::PartiallyEscaped& p) {
 		for(char c: p.m_inner) {
 			if(c == '\\' || c == '"') {
 				s << '\\';

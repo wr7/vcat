@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace dvel {
+namespace vcat {
 	namespace ansi_escape {
 		constexpr std::string_view BOLD    = "\x1b[1m";
 		constexpr std::string_view UNBOLD  = "\x1b[22m";

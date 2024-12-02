@@ -8,7 +8,7 @@ extern "C" {
 	#include "libavutil/error.h"
 }
 
-namespace dvel::muxing::error {
+namespace vcat::muxing::error {
 	using Hint = Diagnostic::Hint;
 
 	inline Diagnostic invalid_output(Span span) {

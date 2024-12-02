@@ -6,7 +6,7 @@
 
 #include <span>
 
-namespace dvel::parser {
+namespace vcat::parser {
 	using TokenStream = std::span<const Spanned<Token>>;
 
 	void verify_brackets(std::span<const Spanned<Token>> tokens);

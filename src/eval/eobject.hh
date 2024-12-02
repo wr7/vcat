@@ -9,7 +9,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace dvel {
+namespace vcat {
 	class EObject;
 	class EList;
 
@@ -25,7 +25,7 @@ namespace dvel {
 			// 3. Another underscore
 			// 4. Data that uniquely represents a particular instance of the type
 			// 5. The size of the above data as a big endian 64 bit integer
-			virtual void hash(dvel::Hasher& hasher) const = 0;
+			virtual void hash(vcat::Hasher& hasher) const = 0;
 			virtual std::string to_string() const = 0;
 			virtual std::string type_name() const = 0;
 
@@ -37,7 +37,7 @@ namespace dvel {
 	template<builtin_function f, StringLiteral name>
 	class BuiltinFunction : public EObject {
 		public:
-			inline void hash(dvel::Hasher& hasher) const {
+			inline void hash(vcat::Hasher& hasher) const {
 				constexpr StringLiteral prefix = "_builtin_" + name;
 				hasher.add(*prefix);
 				hasher.add((uint64_t) name.size());
@@ -65,7 +65,7 @@ namespace dvel {
 
 	class EList : public EObject {
 		public:
-			void hash(dvel::Hasher& hasher) const;
+			void hash(vcat::Hasher& hasher) const;
 			std::string to_string() const;
 			std::string type_name() const;
 
@@ -83,7 +83,7 @@ namespace dvel {
 
 	class EString : public EObject {
 		public:
-			void hash(dvel::Hasher& hasher) const;
+			void hash(vcat::Hasher& hasher) const;
 			std::string to_string() const;
 			std::string type_name() const;
 

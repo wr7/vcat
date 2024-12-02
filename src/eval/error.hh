@@ -6,7 +6,7 @@
 #include <functional>
 #include <optional>
 
-namespace dvel::eval::error {
+namespace vcat::eval::error {
 	using Hint = Diagnostic::Hint;
 
 	inline Diagnostic uncallable_object(EObject& object, Span span) {

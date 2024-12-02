@@ -12,7 +12,7 @@ extern "C" {
 	#include <libavformat/avformat.h>
 }
 
-namespace dvel::filter {
+namespace vcat::filter {
 	class PacketSource {
 		public:
 			// Gets the next packet or returns false if `EOF` is reached
@@ -32,7 +32,7 @@ namespace dvel::filter {
 	class VideoFile : public VFilter {
 			inline VideoFile() {};
 		public:
-			void hash(dvel::Hasher& hasher) const;
+			void hash(vcat::Hasher& hasher) const;
 			std::string to_string() const;
 			std::string type_name() const;
 
@@ -58,7 +58,7 @@ namespace dvel::filter {
 	class Concat : public VFilter {
 		public:
 			Concat() = delete;
-			void hash(dvel::Hasher& hasher) const;
+			void hash(vcat::Hasher& hasher) const;
 			std::string to_string() const;
 			std::string type_name() const;
 

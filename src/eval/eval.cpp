@@ -8,7 +8,7 @@
 #include <memory>
 #include <utility>
 
-namespace dvel::eval {
+namespace vcat::eval {
 	std::unique_ptr<EObject> evaluate_expression(Spanned<const parser::Expression&> expr) {
 		switch (expr.val.type()) {
 			case parser::Expression::Type::Variable:

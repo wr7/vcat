@@ -9,7 +9,7 @@
 #include <iterator>
 #include <ranges>
 
-namespace dvel::parser {
+namespace vcat::parser {
 	// Iterator over `NonBracketed` class
 	class NonBracketedIter {
 		private:

@@ -8,7 +8,7 @@
 #include <optional>
 #include <string_view>
 
-namespace dvel {
+namespace vcat {
 	class Lexer {
 		public:
 			constexpr inline Lexer(std::string_view src): m_src(src), m_remaining_idx(0) {}

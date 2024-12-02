@@ -9,7 +9,7 @@
 #include <span>
 #include <utility>
 
-namespace dvel::eval::builtins {
+namespace vcat::eval::builtins {
 	// Opens a video file
 	std::unique_ptr<EObject> vopen(Spanned<EList&> args) {
 		const std::span<const Spanned<std::unique_ptr<EObject>>> elements = args.val.elements();
@@ -29,7 +29,7 @@ namespace dvel::eval::builtins {
 		}
 
 		try {
-			return std::make_unique<dvel::filter::VideoFile>(std::string(**path_ptr));
+			return std::make_unique<vcat::filter::VideoFile>(std::string(**path_ptr));
 		} catch(std::string err) {
 			throw Diagnostic(std::move(err), {Diagnostic::Hint::error("", args.span)});
 		}

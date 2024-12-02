@@ -11,11 +11,11 @@ extern "C" {
 	#include "libavutil/mathematics.h"
 }
 
-namespace dvel::muxing {
-	void write_output(Spanned<dvel::EObject&> eobject) {
-		dvel::Span span = eobject.span;
+namespace vcat::muxing {
+	void write_output(Spanned<vcat::EObject&> eobject) {
+		vcat::Span span = eobject.span;
 
-		dvel::filter::VFilter *filter = dynamic_cast<dvel::filter::VFilter *>(&eobject.val);
+		vcat::filter::VFilter *filter = dynamic_cast<vcat::filter::VFilter *>(&eobject.val);
 
 		if(!filter) {
 			throw error::invalid_output(span);

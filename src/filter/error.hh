@@ -8,7 +8,7 @@ extern "C" {
 	#include "libavutil/error.h"
 }
 
-namespace dvel::filter::error {
+namespace vcat::filter::error {
 	using Hint = Diagnostic::Hint;
 
 	inline Diagnostic ffmpeg_error(std::string_view msg, Span s) {

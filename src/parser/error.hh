@@ -2,9 +2,9 @@
 
 #include "src/error.hh"
 
-using Hint = dvel::Diagnostic::Hint;
+using Hint = vcat::Diagnostic::Hint;
 
-namespace dvel::parser::error {
+namespace vcat::parser::error {
 	constexpr Diagnostic unclosed_bracket(Span span) {
 		return Diagnostic(
 			"Bracket is not closed",

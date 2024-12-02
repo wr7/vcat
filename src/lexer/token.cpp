@@ -4,7 +4,7 @@
 #include <optional>
 #include <string_view>
 
-namespace dvel {
+namespace vcat {
 	static std::string_view SymbolType_to_str(SymbolType ty) {
 		switch(ty) {
 			case SymbolType::Dot:

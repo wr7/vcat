@@ -6,7 +6,7 @@
 
 #include <string_view>
 
-namespace dvel::eval {
+namespace vcat::eval {
 	std::unique_ptr<EObject> evaluate_expression(Spanned<const parser::Expression&> expr);
 
 	std::unique_ptr<EObject> evaluate_string(Spanned<std::string_view>);

@@ -8,7 +8,7 @@
 #include <string_view>
 #include <format>
 
-namespace dvel::parser {
+namespace vcat::parser {
 	Expression Expression::variable(std::string &&name) {
 		Expression e;
 

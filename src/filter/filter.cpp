@@ -27,7 +27,7 @@ extern "C" {
 	#include <libavutil/error.h>
 }
 
-namespace dvel::filter {
+namespace vcat::filter {
 	void VideoFile::hash(Hasher& hasher) const {
 		hasher.add("_videofile_");
 		hasher.add(&m_file_hash, sizeof(m_file_hash));
