@@ -158,25 +158,23 @@ namespace vcat::filter {
 		return "Concat";
 	}
 
-	class ConcatSource : public PacketSource {
+	// Recalculates the timestamps in a video so that:
+	// 1. The pts and dts of the streams start at 0
+	// 2. The timebase is 90kHz
+	class NormalizeTimestamps : public PacketSource {
 		public:
-			ConcatSource() = delete;
+			NormalizeTimestamps(NormalizeTimestamps&) = delete;
+			NormalizeTimestamps() = delete;
 
-			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span)
-				: m_idx(0)
+			NormalizeTimestamps(const Spanned<const VFilter&> videos)
+				: m_input(videos->get_pkts(videos.span))
 				, m_first_packet(true)
 				, m_next(nullptr)
 				, m_has_next(false)
 				, m_prev_pkt_raw_pts(0)
-				, m_span(span)
-				, m_offset(0)
-				, m_last_pkt_pts(0)
-				, m_last_pkt_dur(0) {
-				for(const auto& video : videos) {
-					m_videos.push_back(Spanned(video->get_pkts(video.span), video.span));
-				}
+				, m_span(videos.span) {
 
-				for(const auto& stream : m_videos[0]->get()->streams()) {
+				for(const auto& stream : m_input->streams()) {
 					AVStream *new_stream = (AVStream *) std::malloc(sizeof(*new_stream));
 					std::memcpy(new_stream, stream, sizeof(*new_stream));
 
@@ -191,29 +189,15 @@ namespace vcat::filter {
 				if(m_has_next) {
 					std::swap(*p_packet, m_next);
 					m_has_next = false;
-					goto start;
-				}
-
-				for(;;) {
-					if(m_idx >= m_videos.size()) {
+				} else {
+					if(!m_input->next_pkt(p_packet)) {
 						return false;
 					}
-
-					if(m_videos[m_idx]->get()->next_pkt(p_packet)) {
-						break;
-					} else {
-						m_first_packet = true;
-						m_prev_pkt_raw_pts = 0;
-						m_offset = m_last_pkt_pts + m_last_pkt_dur;
-						m_idx++;
-					}
 				}
-
-				start:
 
 				AVPacket *packet = *p_packet;
 
-				const int64_t start_time = m_videos[m_idx]->get()->streams()[packet->stream_index]->start_time;
+				const int64_t start_time = m_input->streams()[packet->stream_index]->start_time;
 
 				if(start_time == AV_NOPTS_VALUE || packet->pts == AV_NOPTS_VALUE) {
 					throw error::no_pts(m_span);
@@ -225,9 +209,7 @@ namespace vcat::filter {
 
 				assert((*p_packet)->pts >= 0);
 
-				// Because some streams have negative dts, and naively allowing that may result in a non-
-				// monotonous dts, we're going to reconstruct dts based on pts, but we don't want to break
-				// B-frames.
+				// reconstruct dts without breaking B-Frames
 				if(m_first_packet || (packet->flags & AV_PKT_FLAG_DISPOSABLE)) {
 					packet->dts = packet->pts; // for non-reference frames/the first frame, this is really easy
 				} else {
@@ -236,15 +218,15 @@ namespace vcat::filter {
 						error::handle_ffmpeg_error(m_span, m_next ? 0 : AVERROR_UNKNOWN);
 					}
 
-					if(m_videos[m_idx]->get()->next_pkt(&m_next)) {
+					if(m_input->next_pkt(&m_next)) {
 						m_has_next = true;
 
 						if(m_next->flags & AV_PKT_FLAG_DISPOSABLE) {
 							// we will assume that the next packet is a B frame and that it is the first frame (pts-wise)
 							// that depends on this frame
 
-							// ceiling average that does not overflow
-							packet->dts = m_prev_pkt_raw_pts / 2 + m_next->pts / 2 + ((m_prev_pkt_raw_pts ^ m_next->pts) & 1);
+							// ceiling mean that does not overflow
+							packet->dts = m_prev_pkt_raw_pts / 2 + m_next->pts / 2 + ((m_prev_pkt_raw_pts | m_next->pts) & 1);
 						} else {
 							packet->dts = packet->pts;
 						}
@@ -253,20 +235,12 @@ namespace vcat::filter {
 					}
 				}
 
-				const AVRational old_tb = m_videos[m_idx]->get()->streams()[packet->stream_index]->time_base;
+				const AVRational old_tb = m_input->streams()[packet->stream_index]->time_base;
 				const AVRational new_tb = av_make_q(1, 90000); // C++ compound literals 😭
 
 				packet->pts = av_rescale_q(packet->pts, old_tb, new_tb);
 				packet->dts = av_rescale_q(packet->dts, old_tb, new_tb);
 				packet->duration = av_rescale_q(packet->duration, old_tb, new_tb);
-
-				packet->pts += m_offset;
-				packet->dts += m_offset;
-
-				if(packet->pts >= m_last_pkt_pts) {
-					m_last_pkt_pts = packet->pts;
-					m_last_pkt_dur = packet->duration;
-				}
 
 				m_first_packet = false;
 
@@ -277,7 +251,7 @@ namespace vcat::filter {
 				return m_ostreams;
 			}
 
-			~ConcatSource() {
+			~NormalizeTimestamps() {
 				for(const auto& ostream : m_ostreams) {
 					std::free(ostream);
 				}
@@ -287,21 +261,87 @@ namespace vcat::filter {
 				}
 			}
 
-		private:
-			std::vector<Spanned<std::unique_ptr<PacketSource>>> m_videos;
-			std::vector<AVStream *>                             m_ostreams;
-			size_t                                              m_idx;
+			NormalizeTimestamps(NormalizeTimestamps&& o)
+				: m_input(std::move(o.m_input))
+				, m_ostreams(std::move(o.m_ostreams))
+				, m_first_packet(o.m_first_packet)
+				, m_next(o.m_next)
+				, m_has_next(o.m_has_next)
+				, m_prev_pkt_raw_pts(o.m_prev_pkt_raw_pts)
+				, m_span(o.m_span)
+			{
 
-			bool                                                m_first_packet;
-			AVPacket                                           *m_next;
-			bool                                                m_has_next; // whether the next packet is stored in `m_next`
-			int64_t                                             m_prev_pkt_raw_pts;
+				o.m_next = nullptr;
+			}
+
+		private:
+			std::unique_ptr<PacketSource> m_input;
+			std::vector<AVStream *>       m_ostreams;
+
+			bool                          m_first_packet;
+			AVPacket                     *m_next;
+			bool                          m_has_next; // whether the next packet is stored in `m_next`
+			int64_t                       m_prev_pkt_raw_pts;
+
+			Span                          m_span;
+	};
+
+	class ConcatSource : public PacketSource {
+		public:
+			ConcatSource() = delete;
+
+			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span)
+				: m_idx(0)
+				, m_span(span)
+				, m_offset(0)
+				, m_last_pkt_pts(0)
+				, m_last_pkt_dur(0) {
+				for(const auto& video : videos) {
+					NormalizeTimestamps norm = NormalizeTimestamps(video);
+					m_videos.push_back(std::move(norm));
+				}
+			}
+
+			bool next_pkt(AVPacket **p_packet) {
+				for(;;) {
+					if(m_idx >= m_videos.size()) {
+						return false;
+					}
+
+					if(m_videos[m_idx].next_pkt(p_packet)) {
+						break;
+					} else {
+						m_offset = m_last_pkt_pts + m_last_pkt_dur;
+						m_idx++;
+					}
+				}
+
+				AVPacket *packet = *p_packet;
+
+				packet->pts += m_offset;
+				packet->dts += m_offset;
+
+				if(packet->pts >= m_last_pkt_pts) {
+					m_last_pkt_pts = packet->pts;
+					m_last_pkt_dur = packet->duration;
+				}
+
+				return true;
+			}
+
+			std::span<AVStream *> streams() {
+				return m_videos[0].streams();
+			}
+
+		private:
+			std::vector<NormalizeTimestamps> m_videos;
+			size_t                           m_idx;
 
 			[[maybe_unused]]
-			Span                                                m_span;
-			int64_t                                             m_offset;
-			int64_t                                             m_last_pkt_pts;
-			int64_t                                             m_last_pkt_dur;
+			Span                             m_span;
+			int64_t                          m_offset;
+			int64_t                          m_last_pkt_pts;
+			int64_t                          m_last_pkt_dur;
 	};
 
 	std::unique_ptr<PacketSource> Concat::get_pkts(Span s) const {

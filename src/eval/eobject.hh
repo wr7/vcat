@@ -52,6 +52,8 @@ namespace vcat {
 
 			virtual bool callable() const;
 			virtual const EObject& operator()(EObjectPool& pool, Spanned<const EList&> args) const;
+
+			virtual ~EObject() = default;
 	};
 	static_assert(std::is_abstract<EObject>());
 
