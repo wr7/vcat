@@ -12,10 +12,10 @@ extern "C" {
 }
 
 namespace vcat::muxing {
-	void write_output(Spanned<vcat::EObject&> eobject) {
+	void write_output(Spanned<const vcat::EObject&> eobject) {
 		vcat::Span span = eobject.span;
 
-		vcat::filter::VFilter *filter = dynamic_cast<vcat::filter::VFilter *>(&eobject.val);
+		const vcat::filter::VFilter *filter = dynamic_cast<const vcat::filter::VFilter *>(&eobject.val);
 
 		if(!filter) {
 			throw error::invalid_output(span);

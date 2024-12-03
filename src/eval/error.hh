@@ -9,7 +9,7 @@
 namespace vcat::eval::error {
 	using Hint = Diagnostic::Hint;
 
-	inline Diagnostic uncallable_object(EObject& object, Span span) {
+	inline Diagnostic uncallable_object(const EObject& object, Span span) {
 		return Diagnostic(
 			std::format("Cannot call uncallable object of type `{}`", object.type_name()),
 			{
@@ -53,7 +53,7 @@ namespace vcat::eval::error {
 		);
 	}
 
-	inline Diagnostic expected_video(EObject& object, Span span) {
+	inline Diagnostic expected_video(const EObject& object, Span span) {
 		return Diagnostic(
 			std::format("Expected video; got object of type `{}`", object.type_name()),
 			{

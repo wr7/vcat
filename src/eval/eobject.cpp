@@ -5,7 +5,6 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <sstream>
 #include <string>
 
@@ -14,7 +13,7 @@ namespace vcat {
 		return false;
 	}
 
-	EObject& EObject::operator()(EObjectPool&, Spanned<EList &> args) {
+	const EObject& EObject::operator()(EObjectPool&, Spanned<const EList&> args) const {
 		throw eval::error::uncallable_object(*this, args.span);
 	}
 
@@ -22,7 +21,7 @@ namespace vcat {
 		hasher.add("_list_");
 		const size_t inner_start = hasher.pos();
 
-		for(const Spanned<EObject&>& element : m_elements) {
+		for(const Spanned<const EObject&>& element : m_elements) {
 			element->hash(hasher);
 		}
 
@@ -43,7 +42,7 @@ namespace vcat {
 
 		s << "[\n";
 
-		for(const Spanned<EObject&>& element : m_elements) {
+		for(const Spanned<const EObject&>& element : m_elements) {
 			s << indent(element->to_string()) << ",\n";
 		}
 

@@ -16,7 +16,6 @@ using vcat::parser::Expression;
 
 // TODO:
 // - create custom AVStream object used for PacketSource::streams()
-// - use `const` EObject references
 // - support multiple streams with concat filter
 // - automatically re-encode when using concat filter
 
@@ -44,7 +43,7 @@ int main() {
 		}
 
 		vcat::EObjectPool pool;
-		vcat::EObject& object = vcat::eval::evaluate_expression(pool, expression->as_cref());
+		const vcat::EObject& object = vcat::eval::evaluate_expression(pool, expression->as_cref());
 		std::cout << object.to_string() << "\n";
 		vcat::Hasher hasher;
 
@@ -52,7 +51,7 @@ int main() {
 
 		std::cout << "hash: " << hasher.as_string() << "\n";
 
-		vcat::muxing::write_output(Spanned<vcat::EObject&>(object, expression->span));
+		vcat::muxing::write_output(Spanned<const vcat::EObject&>(object, expression->span));
 
 	} catch (vcat::Diagnostic d) {
 		std::cout << '\n' << d.render(input_test) << '\n';

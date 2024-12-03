@@ -9,7 +9,7 @@
 #include <utility>
 
 namespace vcat::eval {
-	EObject& evaluate_expression(EObjectPool& pool, Spanned<const parser::Expression&> expr) {
+	const EObject& evaluate_expression(EObjectPool& pool, Spanned<const parser::Expression&> expr) {
 		switch (expr.val.type()) {
 			case parser::Expression::Type::Variable:
 				return evaluate_variable     (pool, expr.map([](const auto& e)                {return *e.as_variable()           ;}));
@@ -26,21 +26,21 @@ namespace vcat::eval {
 		throw;
 	}
 
-	EObject& evaluate_string(EObjectPool& pool, Spanned<std::string_view> str) {
+	const EObject& evaluate_string(EObjectPool& pool, Spanned<std::string_view> str) {
 		return pool.add<EString>(std::string(str.val));
 	}
 
-	EObject& evaluate_list(EObjectPool& pool, Spanned<const parser::List&> expr) {
-		std::vector<Spanned<EObject&>> elements_v;
+	const EObject& evaluate_list(EObjectPool& pool, Spanned<const parser::List&> expr) {
+		std::vector<Spanned<const EObject&>> elements_v;
 
 		for(const Spanned<parser::Expression>& expr : expr.val.m_elements) {
-			elements_v.push_back(Spanned<EObject&>(evaluate_expression(pool, expr.as_cref()), expr.span));
+			elements_v.push_back(Spanned<const EObject&>(evaluate_expression(pool, expr.as_cref()), expr.span));
 		}
 
 		return pool.add<EList>(std::move(elements_v));
 	}
 
-	EObject& evaluate_variable(EObjectPool& pool, Spanned<std::string_view> expr) {
+	const EObject& evaluate_variable(EObjectPool& pool, Spanned<std::string_view> expr) {
 		if(expr.val == "vopen") {
 			return pool.add<BuiltinFunction<builtins::vopen, "vopen">>();
 		}
@@ -51,16 +51,16 @@ namespace vcat::eval {
 		throw error::undefined_variable(expr);
 	}
 
-	EObject& evaluate_function_call(EObjectPool& pool, Spanned<const parser::FunctionCall&> call) {
-		EObject& lhs = evaluate_expression(pool, call.val.m_function->as_cref());
+	const EObject& evaluate_function_call(EObjectPool& pool, Spanned<const parser::FunctionCall&> call) {
+		const EObject& lhs = evaluate_expression(pool, call.val.m_function->as_cref());
 
-		std::vector<Spanned<EObject&>> args_v;
+		std::vector<Spanned<const EObject&>> args_v;
 
 		for(const Spanned<parser::Expression>& arg : call.val.m_args) {
-			args_v.push_back(Spanned<EObject&>(evaluate_expression(pool, arg.as_cref()), arg.span));
+			args_v.push_back(Spanned<const EObject&>(evaluate_expression(pool, arg.as_cref()), arg.span));
 		}
 
 		EList args = EList(std::move(args_v));
-		return lhs(pool, Spanned<EList&>(args, call.span));
+		return lhs(pool, Spanned<const EList&>(args, call.span));
 	}
 }

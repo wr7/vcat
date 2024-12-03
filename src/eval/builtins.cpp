@@ -10,8 +10,8 @@
 
 namespace vcat::eval::builtins {
 	// Opens a video file
-	EObject& vopen(EObjectPool& pool, Spanned<EList&> args) {
-		const std::span<const Spanned<EObject&>> elements = args->elements();
+	const EObject& vopen(EObjectPool& pool, const Spanned<const EList&> args) {
+		const std::span<const Spanned<const EObject&>> elements = args->elements();
 
 		if(elements.empty()) {
 			throw eval::error::expected_file_path(args.span, {});
@@ -34,18 +34,18 @@ namespace vcat::eval::builtins {
 		}
 	}
 
-	EObject& concat(EObjectPool& pool, Spanned<EList&> args) {
-		std::vector<Spanned<filter::VFilter&>> videos;
+	const EObject& concat(EObjectPool& pool, const Spanned<const EList&> args) {
+		std::vector<Spanned<const filter::VFilter&>> videos;
 
 		for(const auto& arg : args->elements()) {
-			EObject *arg_ptr = &*arg;
+			const EObject *arg_ptr = &*arg;
 
-			filter::VFilter *video = dynamic_cast<filter::VFilter *>(arg_ptr);
+			const filter::VFilter *video = dynamic_cast<const filter::VFilter *>(arg_ptr);
 			if(!video) {
 				throw error::expected_video(*arg, arg.span);
 			}
 
-			videos.push_back(Spanned<filter::VFilter&>(*video, arg.span));
+			videos.push_back(Spanned<const filter::VFilter&>(*video, arg.span));
 		}
 
 		return pool.add<filter::Concat>(std::move(videos), args.span);

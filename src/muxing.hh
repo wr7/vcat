@@ -3,6 +3,6 @@
 #include "src/eval/eobject.hh"
 
 namespace vcat::muxing {
-	void write_output(Spanned<vcat::EObject&> eobject);
+	void write_output(Spanned<const vcat::EObject&> eobject);
 }
 

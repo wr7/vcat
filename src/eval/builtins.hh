@@ -4,8 +4,8 @@
 
 namespace vcat::eval::builtins {
 	// Opens a video file
-	EObject& vopen(EObjectPool& pool, Spanned<EList&> args);
+	const EObject& vopen(EObjectPool& pool, Spanned<const EList&> args);
 	// Concatenates multiple videos
-	EObject& concat(EObjectPool& pool, Spanned<EList&> args);
+	const EObject& concat(EObjectPool& pool, Spanned<const EList&> args);
 }
 

@@ -54,13 +54,13 @@ namespace vcat::filter {
 
 			std::unique_ptr<PacketSource> get_pkts(Span) const;
 
-			constexpr Concat(std::vector<Spanned<VFilter&>> videos, Span s) : m_videos(std::move(videos)) {
+			constexpr Concat(std::vector<Spanned<const VFilter&>> videos, Span s) : m_videos(std::move(videos)) {
 				if(m_videos.empty()) {
 					throw error::expected_video_got_none(s);
 				}
 			}
 		private:
-			std::vector<Spanned<VFilter&>> m_videos;
+			std::vector<Spanned<const VFilter&>> m_videos;
 	};
 	static_assert(!std::is_abstract<Concat>());
 

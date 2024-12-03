@@ -163,7 +163,7 @@ namespace vcat::filter {
 		public:
 			ConcatSource() = delete;
 
-			ConcatSource(std::span<const Spanned<VFilter&>> videos, Span span)
+			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span)
 				: m_idx(0)
 				, m_first_packet(true)
 				, m_next(nullptr)

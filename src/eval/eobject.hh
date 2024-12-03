@@ -14,7 +14,7 @@ namespace vcat {
 	class EObject;
 	class EList;
 
-	using builtin_function = EObject& (*)(EObjectPool& pool, Spanned<EList&> args);
+	using builtin_function = const EObject& (*)(EObjectPool& pool, Spanned<const EList&> args);
 
 	class EObjectPool {
 		public:
@@ -51,7 +51,7 @@ namespace vcat {
 			virtual std::string type_name() const = 0;
 
 			virtual bool callable() const;
-			virtual EObject& operator()(EObjectPool& pool, Spanned<EList&> args);
+			virtual const EObject& operator()(EObjectPool& pool, Spanned<const EList&> args) const;
 	};
 	static_assert(std::is_abstract<EObject>());
 
@@ -79,7 +79,7 @@ namespace vcat {
 				return true;
 			}
 
-			EObject& operator()(EObjectPool& pool, Spanned<EList&> args) {
+			const EObject& operator()(EObjectPool& pool, Spanned<const EList&> args) const {
 				return f(pool, args);
 			}
 	};
@@ -90,15 +90,15 @@ namespace vcat {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			constexpr EList(std::vector<Spanned<EObject&>>&& elements)
+			constexpr EList(std::vector<Spanned<const EObject&>>&& elements)
 				: m_elements(std::move(elements)) {}
 
-			constexpr std::span<const Spanned<EObject&>> elements() const {
+			constexpr std::span<const Spanned<const EObject&>> elements() const {
 				return m_elements;
 			}
 
 		private:
-			std::vector<Spanned<EObject&>> m_elements;
+			std::vector<Spanned<const EObject&>> m_elements;
 	};
 	static_assert(!std::is_abstract<EList>());
 
