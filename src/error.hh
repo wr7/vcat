@@ -75,7 +75,7 @@ namespace vcat {
 				return &val;
 			}
 
-			constexpr std::remove_cvref_t<T> *operator->() {
+			constexpr std::remove_reference_t<T> *operator->() {
 				return &val;
 			}
 

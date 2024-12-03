@@ -61,5 +61,23 @@ namespace vcat::eval::error {
 			}
 		);
 	}
+
+	inline Diagnostic unexpected_character_in_number(char c, Span span) {
+		return Diagnostic(
+			std::format("Unexpected character `{}` in number", c),
+			{
+				Hint::error("", span)
+			}
+		);
+	}
+
+	inline Diagnostic integer_too_large(std::string_view s, Span span) {
+		return Diagnostic(
+			std::format("The integer `{}` is too large", s),
+			{
+				Hint::error("", span)
+			}
+		);
+	}
 }
 

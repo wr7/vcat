@@ -73,4 +73,22 @@ namespace vcat {
 	std::string EString::type_name() const {
 		return "String";
 	}
+
+	void EInteger::hash(vcat::Hasher& hasher) const {
+		hasher.add("_int64_");
+		hasher.add(m_value);
+		hasher.add((uint64_t) sizeof(int64_t));
+	}
+
+	std::string EInteger::to_string() const {
+		std::stringstream s;
+
+		s << m_value;
+
+		return s.str();
+	}
+
+	std::string EInteger::type_name() const {
+		return "Integer";
+	}
 }

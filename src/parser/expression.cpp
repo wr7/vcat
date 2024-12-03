@@ -1,6 +1,5 @@
 #include "src/parser/expression.hh"
 #include "src/error.hh"
-#include "src/parser/error.hh"
 #include "src/util.hh"
 
 #include <cstdlib>
@@ -14,6 +13,15 @@ namespace vcat::parser {
 
 		e.m_type = Type::Variable;
 		new(&e.m_variable) std::string(std::move(name));
+
+		return e;
+	}
+
+	Expression Expression::number(std::string &&name) {
+		Expression e;
+
+		e.m_type = Type::Number;
+		new(&e.m_number) std::string(std::move(name));
 
 		return e;
 	}
@@ -62,6 +70,14 @@ namespace vcat::parser {
 		return m_variable;
 	}
 
+	std::optional<std::reference_wrapper<const std::string>> Expression::as_number() const {
+		if(m_type != Type::Number) {
+			return {};
+		}
+
+		return m_number;
+	}
+
 	std::optional<std::string_view> Expression::as_string() const {
 		if(m_type != Type::String) {
 			return std::optional<std::string_view>();
@@ -90,6 +106,8 @@ namespace vcat::parser {
 		switch(m_type) {
 			case Type::Variable:
 				m_variable.std::string::~string(); return;
+			case Type::Number:
+				m_number.std::string::~string(); return;
 			case Type::String:
 				m_string.std::string::~string();   return;
 			case Type::List:
@@ -109,6 +127,9 @@ namespace vcat::parser {
 		switch(old.m_type) {
 			case Type::Variable:
 				new(&m_variable) std::string(std::move(old.m_variable));
+				return;
+			case Type::Number:
+				new(&m_number) std::string(std::move(old.m_number));
 				return;
 			case Type::String:
 				new(&m_string) std::string(std::move(old.m_string));
@@ -189,6 +210,8 @@ namespace vcat::parser {
 		switch(m_type) {
 			case Type::Variable:
 				return std::format("Variable({})", m_variable);
+			case Type::Number:
+				return std::format("Number({})", m_number);
 			case Type::String:
 				return std::format("String({})", m_variable);
 			case Type::List:

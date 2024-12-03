@@ -3,6 +3,7 @@
 #include "src/error.hh"
 #include "src/util.hh"
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -47,6 +48,7 @@ namespace vcat::parser {
 	class Expression {
 		public:
 			static Expression variable(std::string&&);
+			static Expression number(std::string&&);
 			static Expression string(std::string&&);
 			static Expression list(std::vector<Spanned<Expression>>&&);
 			static Expression function_call(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args);
@@ -55,12 +57,14 @@ namespace vcat::parser {
 			std::string to_string() const;
 
 			std::optional<std::string_view> as_variable() const;
+			std::optional<std::reference_wrapper<const std::string>> as_number() const;
 			std::optional<std::string_view> as_string() const;
 			OptionalRef<const List> as_list() const;
 			OptionalRef<const FunctionCall> as_function_call() const;
 
 			enum struct Type {
 				Variable,
+				Number,
 				String,
 				List,
 				FunctionCall,
@@ -80,6 +84,7 @@ namespace vcat::parser {
 
 			union {
 				std::string  m_variable;
+				std::string  m_number;
 				std::string  m_string;
 				List         m_list;
 				FunctionCall m_function_call;

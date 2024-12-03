@@ -49,6 +49,7 @@ namespace vcat::parser {
 		typedef std::optional<Expression> (*subfunction)(TokenStream);
 		constexpr subfunction subfunctions[] = {
 			try_parse_variable,
+			try_parse_number,
 			try_parse_string,
 			try_parse_parenthized_expression,
 			try_parse_function_call,
@@ -80,6 +81,18 @@ namespace vcat::parser {
 
 		if(std::optional<std::string_view> ident = tokens.front().val.as_identifier()) {
 			return Expression::variable(std::string(*ident));
+		}
+
+		return std::optional<Expression>();
+	}
+
+	std::optional<Expression> try_parse_number(TokenStream tokens) {
+		if(tokens.size() != 1) {
+			return std::optional<Expression>();
+		}
+
+		if(std::optional<std::string_view> num = tokens.front().val.as_number()) {
+			return Expression::number(std::string(*num));
 		}
 
 		return std::optional<Expression>();

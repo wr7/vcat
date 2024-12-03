@@ -14,6 +14,7 @@ namespace vcat::parser {
 	std::optional<Spanned<Expression>> try_parse_expression(TokenStream tokens);
 
 	std::optional<Expression> try_parse_variable(TokenStream tokens);
+	std::optional<Expression> try_parse_number(TokenStream tokens);
 	std::optional<Expression> try_parse_string(TokenStream tokens);
 	std::optional<Expression> try_parse_parenthized_expression(TokenStream tokens);
 	std::optional<Expression> try_parse_list(TokenStream tokens);

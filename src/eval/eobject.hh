@@ -3,6 +3,7 @@
 #include "src/error.hh"
 #include "src/util.hh"
 
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -121,5 +122,23 @@ namespace vcat {
 			std::string m_string;
 	};
 	static_assert(!std::is_abstract<EString>());
+
+	class EInteger : public EObject {
+		public:
+			void hash(vcat::Hasher& hasher) const;
+			std::string to_string() const;
+			std::string type_name() const;
+
+			constexpr EInteger(int64_t s)
+				: m_value(s) {}
+
+			constexpr int64_t operator*() const {
+				return m_value;
+			}
+
+		private:
+			int64_t m_value;
+	};
+	static_assert(!std::is_abstract<EInteger>());
 }
 
