@@ -14,7 +14,7 @@ namespace vcat {
 		return false;
 	}
 
-	std::unique_ptr<EObject> EObject::operator()(Spanned<EList &> args) {
+	EObject& EObject::operator()(EObjectPool&, Spanned<EList &> args) {
 		throw eval::error::uncallable_object(*this, args.span);
 	}
 
@@ -22,8 +22,8 @@ namespace vcat {
 		hasher.add("_list_");
 		const size_t inner_start = hasher.pos();
 
-		for(const Spanned<std::unique_ptr<EObject>>& element : m_elements) {
-			element.val->hash(hasher);
+		for(const Spanned<EObject&>& element : m_elements) {
+			element->hash(hasher);
 		}
 
 		hasher.add((uint64_t) (hasher.pos() - inner_start));
@@ -34,7 +34,7 @@ namespace vcat {
 		if(m_elements.size() <= 1) {
 			s << "[";
 			if(!m_elements.empty()) {
-				s << m_elements[0].val->to_string();
+				s << m_elements[0]->to_string();
 			}
 			s << "]";
 
@@ -43,8 +43,8 @@ namespace vcat {
 
 		s << "[\n";
 
-		for(const Spanned<std::unique_ptr<EObject>>& element : m_elements) {
-			s << indent(element.val->to_string()) << ",\n";
+		for(const Spanned<EObject&>& element : m_elements) {
+			s << indent(element->to_string()) << ",\n";
 		}
 
 		s << "]";

@@ -7,10 +7,10 @@
 #include <string_view>
 
 namespace vcat::eval {
-	std::unique_ptr<EObject> evaluate_expression(Spanned<const parser::Expression&> expr);
+	EObject& evaluate_expression(EObjectPool& pool, Spanned<const parser::Expression&> expr);
 
-	std::unique_ptr<EObject> evaluate_string(Spanned<std::string_view>);
-	std::unique_ptr<EObject> evaluate_list(Spanned<const parser::List&>);
-	std::unique_ptr<EObject> evaluate_variable(Spanned<std::string_view>);
-	std::unique_ptr<EObject> evaluate_function_call(Spanned<const parser::FunctionCall&>);
+	EObject& evaluate_string(EObjectPool&, Spanned<std::string_view>);
+	EObject& evaluate_list(EObjectPool&, Spanned<const parser::List&>);
+	EObject& evaluate_variable(EObjectPool&, Spanned<std::string_view>);
+	EObject& evaluate_function_call(EObjectPool&, Spanned<const parser::FunctionCall&>);
 }

@@ -10,10 +10,31 @@
 #include <vector>
 
 namespace vcat {
+	class EObjectPool;
 	class EObject;
 	class EList;
 
-	using builtin_function = std::unique_ptr<EObject> (*)(Spanned<EList&> args);
+	using builtin_function = EObject& (*)(EObjectPool& pool, Spanned<EList&> args);
+
+	class EObjectPool {
+		public:
+			template<typename T, class... Args>
+			T& add(Args&&... args) {
+				std::unique_ptr<T> ptr = std::make_unique<T>(std::forward<Args>(args)...);
+				m_objects.push_back(std::move(ptr));
+
+				return dynamic_cast<T&>(*m_objects.back());
+			}
+
+			template<typename T>
+			T& ptr(std::unique_ptr<T>&& ptr) {
+				m_objects.push_back(std::move(ptr));
+
+				return dynamic_cast<T&>(*m_objects.back());
+			}
+		private:
+			std::vector<std::unique_ptr<EObject>> m_objects;
+	};
 
 	class EObject {
 		public:
@@ -30,7 +51,7 @@ namespace vcat {
 			virtual std::string type_name() const = 0;
 
 			virtual bool callable() const;
-			virtual std::unique_ptr<EObject> operator()(Spanned<EList&> args);
+			virtual EObject& operator()(EObjectPool& pool, Spanned<EList&> args);
 	};
 	static_assert(std::is_abstract<EObject>());
 
@@ -58,8 +79,8 @@ namespace vcat {
 				return true;
 			}
 
-			std::unique_ptr<EObject> operator()(Spanned<EList&> args) {
-				return f(args);
+			EObject& operator()(EObjectPool& pool, Spanned<EList&> args) {
+				return f(pool, args);
 			}
 	};
 
@@ -69,15 +90,15 @@ namespace vcat {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			constexpr EList(std::vector<Spanned<std::unique_ptr<EObject>>>&& elements)
+			constexpr EList(std::vector<Spanned<EObject&>>&& elements)
 				: m_elements(std::move(elements)) {}
 
-			constexpr std::span<const Spanned<std::unique_ptr<EObject>>> elements() const {
+			constexpr std::span<const Spanned<EObject&>> elements() const {
 				return m_elements;
 			}
 
 		private:
-			std::vector<Spanned<std::unique_ptr<EObject>>> m_elements;
+			std::vector<Spanned<EObject&>> m_elements;
 	};
 	static_assert(!std::is_abstract<EList>());
 

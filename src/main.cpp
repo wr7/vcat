@@ -8,7 +8,6 @@
 #include "src/parser/expression.hh"
 #include "src/util.hh"
 #include <iostream>
-#include <memory>
 #include <string_view>
 
 using vcat::Spanned;
@@ -43,15 +42,16 @@ int main() {
 			return 0;
 		}
 
-		std::unique_ptr<vcat::EObject> object = vcat::eval::evaluate_expression(expression->as_cref());
-		std::cout << object->to_string() << "\n";
+		vcat::EObjectPool pool;
+		vcat::EObject& object = vcat::eval::evaluate_expression(pool, expression->as_cref());
+		std::cout << object.to_string() << "\n";
 		vcat::Hasher hasher;
 
-		object->hash(hasher);
+		object.hash(hasher);
 
 		std::cout << "hash: " << hasher.as_string() << "\n";
 
-		vcat::muxing::write_output(Spanned<vcat::EObject&>(*object.get(), expression->span));
+		vcat::muxing::write_output(Spanned<vcat::EObject&>(object, expression->span));
 
 	} catch (vcat::Diagnostic d) {
 		std::cout << '\n' << d.render(input_test) << '\n';
