@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -25,6 +26,7 @@ namespace vcat {
 				ClosingBracket,
 
 				String,
+				Number,
 				Identifier,
 
 				Symbol,
@@ -45,19 +47,22 @@ namespace vcat {
 			static Token opening(BracketType);
 			static Token closing(BracketType);
 			static Token identifier(std::string_view);
-			static Token string(std::string&& string);
+			static Token number(std::string_view);
+			static Token string(std::string&&);
 
 			std::optional<BracketType> as_opening() const;
 			std::optional<BracketType> as_closing() const;
 
 			std::optional<std::string_view> as_string() const;
 			std::optional<std::string_view> as_identifier() const;
+			std::optional<std::string_view> as_number() const;
 
 			std::optional<SymbolType> as_symbol() const;
 		private:
 			Type m_type;
 			union {
 				std::string_view m_identifier;
+				std::string_view m_number;
 				std::string      m_string;
 				BracketType      m_bracket_type;
 
@@ -91,6 +96,8 @@ namespace vcat {
 	}
 
 	consteval Token::Token(std::string_view s) {
+		assert(s.length() > 0);
+
 		if(s.length() == 1) {
 			switch(s[0]) {
 				case '(': case ')':
@@ -118,6 +125,12 @@ namespace vcat {
 		if(symbol_type.has_value()) {
 			m_type = Type::Symbol;
 			m_symbol = symbol_type.value();
+			return;
+		}
+
+		if(s[0] >= '0' && s[0] <= '9') {
+			m_type = Type::Number;
+			m_number = s;
 			return;
 		}
 

@@ -41,13 +41,15 @@ namespace vcat {
 				return std::format("ClosingBracket({})", BracketType_to_str(m_bracket_type));
 			case Type::Identifier:
 				return std::format("Identifier({})", m_identifier);
+			case Type::Number:
+				return std::format("Number({})", m_number);
 			case Type::String:
 				return std::format("String({})", m_string);
 			case Type::Symbol:
 				return std::format("Symbol({})", SymbolType_to_str(m_symbol));
 		}
 
-		throw; // unreachable
+		std::abort(); // unreachable
 	}
 
 	Token Token::opening(BracketType type) {
@@ -70,6 +72,14 @@ namespace vcat {
 		Token t;
 		t.m_type = Type::Identifier;
 		t.m_identifier = identifier;
+
+		return Token(std::move(t));
+	}
+
+	Token Token::number(std::string_view number) {
+		Token t;
+		t.m_type = Type::Number;
+		t.m_number = number;
 
 		return Token(std::move(t));
 	}
@@ -114,6 +124,14 @@ namespace vcat {
 		return m_identifier;
 	}
 
+	std::optional<std::string_view> Token::as_number() const {
+		if(m_type != Type::Number) {
+			return std::optional<std::string_view>();
+		}
+
+		return m_number;
+	}
+
 	std::optional<SymbolType> Token::as_symbol() const {
 		if(m_type != Type::Symbol) {
 			return std::optional<SymbolType>();
@@ -127,6 +145,7 @@ namespace vcat {
 			case Type::OpeningBracket:
 			case Type::ClosingBracket:
 			case Type::Identifier:
+			case Type::Number:
 			case Type::Symbol:
 				break; // No destructor needed
 			case Type::String:
@@ -142,17 +161,22 @@ namespace vcat {
 			case Type::OpeningBracket:
 			case Type::ClosingBracket:
 				m_bracket_type = d.m_bracket_type;
-				break;
+				return;
 			case Type::String:
 				new(&m_string) std::string(std::move(d.m_string));
-				break;
+				return;
 			case Type::Identifier:
 				m_identifier = d.m_identifier;
-				break;
+				return;
+			case Type::Number:
+				m_number = d.m_number;
+				return;
 			case Type::Symbol:
 				m_symbol = d.m_symbol;
-				break;
+				return;
 		}
+
+		std::abort(); // unreachable
 	}
 
 	bool Token::operator==(const Token& rhs) {
@@ -168,6 +192,8 @@ namespace vcat {
 				return m_string == rhs.m_string;
 			case Type::Identifier:
 				return m_identifier == rhs.m_identifier;
+			case Type::Number:
+				return m_number == rhs.m_number;
 			case Type::Symbol:
 				return m_symbol == rhs.m_symbol;
 		}

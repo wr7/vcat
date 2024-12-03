@@ -18,7 +18,7 @@ namespace vcat {
 			size_t m_remaining_idx;
 
 			std::optional<Spanned<Token>> lex_symbol();
-			std::optional<Spanned<Token>> lex_ident();
+			std::optional<Spanned<Token>> lex_ident_or_number();
 			std::optional<Spanned<Token>> lex_string();
 	};
 }

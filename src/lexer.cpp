@@ -10,7 +10,7 @@ namespace vcat {
 	std::optional<Spanned<Token>> Lexer::next() {
 		for(;;) {
 			if(m_remaining_idx >= m_src.length()) {
-				return std::optional<Spanned<Token>>();
+				return {};
 			}
 
 			char c = m_src[m_remaining_idx];
@@ -20,7 +20,7 @@ namespace vcat {
 				continue;
 			}
 
-			auto ident = this->lex_ident();
+			auto ident = this->lex_ident_or_number();
 			if(ident.has_value()){
 				return ident;
 			}
@@ -68,9 +68,16 @@ namespace vcat {
 		return std::optional(Spanned(Token(std::move(tok)), s));
 	}
 
-	std::optional<Spanned<Token>> Lexer::lex_ident() {
+	std::optional<Spanned<Token>> Lexer::lex_ident_or_number() {
 		const size_t start = m_remaining_idx;
 		size_t len = 0;
+		bool is_number = false;
+
+		if(m_remaining_idx < m_src.length()) {
+			if(m_src[m_remaining_idx] >= '0' && m_src[m_remaining_idx] <= '9') {
+				is_number = true;
+			}
+		}
 
 		while(m_remaining_idx < m_src.length()) {
 			char c = m_src[m_remaining_idx];
@@ -80,6 +87,7 @@ namespace vcat {
 			|| (c >= 'A' && c <= 'Z')
 			|| (c >= '0' && c <= '9')
 			||  c == '_'
+			|| (is_number && c == '.')
 			) {
 				len += 1;
 				m_remaining_idx += 1;
@@ -96,7 +104,11 @@ namespace vcat {
 		Span s = Span(start, len);
 		std::string_view ident = m_src.substr(start, len);
 
-		return std::optional(Spanned(Token::identifier(ident), s));
+		if(is_number) {
+			return std::optional(Spanned(Token::number(ident), s));
+		} else {
+			return std::optional(Spanned(Token::identifier(ident), s));
+		}
 	}
 
 	std::optional<Spanned<Token>> Lexer::lex_string() {
