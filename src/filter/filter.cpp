@@ -127,7 +127,7 @@ namespace vcat::filter {
 		const size_t start = hasher.pos();
 
 		for(const auto& video : m_videos) {
-			video.val->hash(hasher);
+			video->hash(hasher);
 		}
 
 		hasher.add((uint64_t) (hasher.pos() - start));
@@ -146,7 +146,7 @@ namespace vcat::filter {
 
 		for(const auto& video : m_videos) {
 			s
-				<< indent(video.val->to_string())
+				<< indent(video->to_string())
 				<< separator;
 		}
 
@@ -163,7 +163,7 @@ namespace vcat::filter {
 		public:
 			ConcatSource() = delete;
 
-			ConcatSource(std::span<const Spanned<std::unique_ptr<VFilter>>> videos, Span span)
+			ConcatSource(std::span<const Spanned<VFilter&>> videos, Span span)
 				: m_idx(0)
 				, m_first_packet(true)
 				, m_next(nullptr)
@@ -174,7 +174,7 @@ namespace vcat::filter {
 				, m_last_pkt_pts(0)
 				, m_last_pkt_dur(0) {
 				for(const auto& video : videos) {
-					m_videos.push_back(Spanned(video->get()->get_pkts(video.span), video.span));
+					m_videos.push_back(Spanned(video->get_pkts(video.span), video.span));
 				}
 
 				for(const auto& stream : m_videos[0]->get()->streams()) {

@@ -16,6 +16,7 @@ using vcat::parser::Expression;
 
 // TODO:
 // - create custom AVStream object used for PacketSource::streams()
+// - use `const` EObject references
 // - support multiple streams with concat filter
 // - automatically re-encode when using concat filter
 

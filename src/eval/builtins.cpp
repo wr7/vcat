@@ -4,7 +4,6 @@
 #include "src/filter/filter.hh"
 #include "src/eval/builtins.hh"
 
-#include <memory>
 #include <optional>
 #include <span>
 #include <utility>
@@ -12,7 +11,7 @@
 namespace vcat::eval::builtins {
 	// Opens a video file
 	EObject& vopen(EObjectPool& pool, Spanned<EList&> args) {
-		const std::span<const Spanned<EObject&>> elements = args.val.elements();
+		const std::span<const Spanned<EObject&>> elements = args->elements();
 
 		if(elements.empty()) {
 			throw eval::error::expected_file_path(args.span, {});
@@ -36,7 +35,7 @@ namespace vcat::eval::builtins {
 	}
 
 	EObject& concat(EObjectPool& pool, Spanned<EList&> args) {
-		std::vector<Spanned<std::unique_ptr<filter::VFilter>>> videos;
+		std::vector<Spanned<filter::VFilter&>> videos;
 
 		for(const auto& arg : args->elements()) {
 			EObject *arg_ptr = &*arg;
@@ -46,7 +45,7 @@ namespace vcat::eval::builtins {
 				throw error::expected_video(*arg, arg.span);
 			}
 
-			videos.push_back(Spanned(video->clone(), arg.span));
+			videos.push_back(Spanned<filter::VFilter&>(*video, arg.span));
 		}
 
 		return pool.add<filter::Concat>(std::move(videos), args.span);
