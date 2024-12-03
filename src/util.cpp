@@ -14,6 +14,10 @@
 #  define be64toh(x) betoh64(x)
 #endif
 
+extern "C" {
+	#include "libavutil/hash.h"
+}
+
 namespace vcat {
 	std::string indent(std::string&& input, size_t level) {
 		for(size_t i = input.length() - 1;;) {
@@ -51,7 +55,7 @@ namespace vcat {
 
 	void Hasher::add(const void *data, const size_t nbytes) {
 		m_nbytes += nbytes;
-		m_hasher.add(data, nbytes);
+		av_hash_update(m_hasher, (const uint8_t *) data, nbytes);
 	}
 	std::ostream& operator<<(std::ostream& s, const vcat::PartiallyEscaped& p) {
 		for(char c: p.m_inner) {

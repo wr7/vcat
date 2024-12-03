@@ -2,6 +2,7 @@
 #include "src/error.hh"
 #include "src/filter/error.hh"
 #include "src/util.hh"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -43,7 +44,7 @@ namespace vcat::filter {
 
 		f.rdbuf()->pubsetbuf(0, 0);
 
-		SHA256 hasher;
+		Hasher hasher;
 
 		while(f.good()) {
 			size_t num_bytes = f.read(&buf[0], sizeof(buf)).gcount();
@@ -51,7 +52,8 @@ namespace vcat::filter {
 			hasher.add(&buf[0], num_bytes);
 		}
 
-		hasher.getHash(m_file_hash);
+		std::array<uint8_t, 32> hash = hasher.into_bin();
+		std::copy_n(hash.begin(), hash.size(), m_file_hash);
 
 		if(f.bad()) {
 			throw std::format("Failed to open file `{}`: {}", m_path, strerror(errno));

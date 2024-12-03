@@ -1,3 +1,0 @@
-[submodule "deps/hash-library"]
-	path = deps/hash-library
-	url = https://github.com/stbrumme/hash-library.git

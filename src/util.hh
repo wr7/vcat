@@ -1,6 +1,5 @@
 #pragma once
 
-#include "sha256.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -10,6 +9,11 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <array>
+
+extern "C" {
+	#include <libavutil/hash.h>
+}
 
 namespace vcat {
 	template <typename T> using OptionalRef = std::optional<std::reference_wrapper<T>>;
@@ -28,17 +32,47 @@ namespace vcat {
 
 	class Hasher {
 		public:
+			Hasher() {
+				av_hash_alloc(&m_hasher, "SHA256");
+				av_hash_init(m_hasher);
+			}
+
 			constexpr size_t pos() const {return m_nbytes;}
 
 			void add(const void*data, size_t nbytes);
 			void add(std::string_view string);
 			void add(uint64_t data);
 
+			inline std::array<uint8_t, 32> into_bin() {
+				std::array<uint8_t, 32> retval = {0};
+
+				av_hash_final_bin(m_hasher, &retval[0], 32);
+
+				return retval;
+			}
+
 			inline std::string as_string() {
-				return m_hasher.getHash();
+				std::string retval;
+				retval.resize(45);
+
+				av_hash_final_b64(m_hasher, (uint8_t *) retval.data(), retval.size() + 1);
+
+				retval.resize(43);
+				for(auto& c : retval) {
+					switch(c) {
+						case '+': c = '-'; break;
+						case '/': c = '_'; break;
+					}
+				}
+
+				return retval;
+			}
+
+			inline ~Hasher() {
+				av_hash_freep(&m_hasher);
 			}
 		private:
-			SHA256 m_hasher;
+			AVHashContext *m_hasher;
 			std::size_t m_nbytes = 0;
 	};
 
