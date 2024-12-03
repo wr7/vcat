@@ -19,17 +19,6 @@ namespace vcat {
 	template <typename T> using OptionalRef = std::optional<std::reference_wrapper<T>>;
 	std::string indent(std::string&& input, size_t level = 1);
 
-	// Escapes the `"` and `\` characters in a string
-	class PartiallyEscaped {
-		public:
-			PartiallyEscaped() = delete;
-			constexpr PartiallyEscaped(std::string_view s): m_inner(s) {}
-
-			friend std::ostream& operator<<(std::ostream& s, const vcat::PartiallyEscaped& p);
-		private:
-			std::string_view m_inner;
-	};
-
 	class Hasher {
 		public:
 			Hasher() {

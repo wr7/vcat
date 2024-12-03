@@ -57,15 +57,4 @@ namespace vcat {
 		m_nbytes += nbytes;
 		av_hash_update(m_hasher, (const uint8_t *) data, nbytes);
 	}
-	std::ostream& operator<<(std::ostream& s, const vcat::PartiallyEscaped& p) {
-		for(char c: p.m_inner) {
-			if(c == '\\' || c == '"') {
-				s << '\\';
-			}
-
-			s << c;
-		}
-
-		return s;
-	}
 }

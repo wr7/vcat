@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
 #include <sstream>
 #include <string>
 
@@ -64,9 +65,7 @@ namespace vcat {
 	std::string EString::to_string() const {
 		std::stringstream s;
 
-		s << '"'
-		  << PartiallyEscaped(m_string)
-		  << '"';
+		s << std::quoted(m_string);
 
 		return s.str();
 	}

@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <format>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -64,9 +65,7 @@ namespace vcat::filter {
 
 	std::string VideoFile::to_string() const {
 		std::stringstream s;
-		s << "VideoFile(\""
-			<< PartiallyEscaped(m_path)
-			<< "\")";
+		s << "VideoFile(" << std::quoted(m_path) << ")";
 
 		return s.str();
 	}
