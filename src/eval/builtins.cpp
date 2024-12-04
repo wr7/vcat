@@ -5,6 +5,7 @@
 #include "src/eval/builtins.hh"
 
 #include <optional>
+#include <ranges>
 #include <span>
 #include <utility>
 
@@ -34,15 +35,27 @@ namespace vcat::eval::builtins {
 		}
 	}
 
-	const EObject& concat(EObjectPool& pool, const Spanned<const EList&> args) {
+	const EObject& concat(EObjectPool& pool, Spanned<const EList&> args) {
+		std::vector<Spanned<const EObject&>> args_to_parse = {Spanned<const EObject&>(*args, args.span)};
+
 		std::vector<Spanned<const filter::VFilter&>> videos;
 
-		for(const auto& arg : args->elements()) {
-			const EObject *arg_ptr = &*arg;
+		while(!args_to_parse.empty()) {
+			Spanned<const EObject&> arg = args_to_parse.back();
+			args_to_parse.pop_back();
 
-			const filter::VFilter *video = dynamic_cast<const filter::VFilter *>(arg_ptr);
+			const EList *video_list = dynamic_cast<const EList*>(&*arg);
+			if(video_list) {
+				for(const auto& arg : video_list->elements() | std::ranges::views::reverse) {
+					args_to_parse.push_back(arg);
+				}
+
+				continue;
+			}
+
+			const filter::VFilter *video = dynamic_cast<const filter::VFilter *>(&*arg);
 			if(!video) {
-				throw error::expected_video(*arg, arg.span);
+				throw error::expected_video_or_list(*arg, arg.span);
 			}
 
 			videos.push_back(Spanned<const filter::VFilter&>(*video, arg.span));
