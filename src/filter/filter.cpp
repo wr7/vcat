@@ -1,4 +1,5 @@
 #include "src/filter/filter.hh"
+#include "src/constants.hh"
 #include "src/error.hh"
 #include "src/filter/error.hh"
 #include "src/util.hh"
@@ -89,6 +90,12 @@ namespace vcat::filter {
 					avformat_find_stream_info(m_ctx, NULL)
 				);
 
+				m_codecs.reserve(av_streams().size());
+
+				for(AVStream *stream : av_streams()) {
+					m_codecs.push_back(stream->codecpar);
+				}
+
 				assert(m_ctx);
 			}
 
@@ -104,22 +111,33 @@ namespace vcat::filter {
 				return true;
 			}
 
-			std::span<AVStream *> streams() {
+			std::span<AVCodecParameters *> codecs() {
+				return m_codecs;
+			}
+
+			std::span<AVStream *> av_streams() {
 				return std::span<AVStream *>(m_ctx->streams, m_ctx->nb_streams);
 			}
 
 			~VideoFileSource() {
-				avformat_close_input(&m_ctx);
+				if(m_ctx != nullptr) {
+					avformat_close_input(&m_ctx);
+				}
+			}
+
+			VideoFileSource(VideoFileSource&& old)
+				: m_ctx(old.m_ctx)
+				, m_codecs(std::move(old.m_codecs))
+				, m_span(old.m_span)
+			{
+				old.m_ctx = nullptr;
 			}
 
 		private:
-			AVFormatContext *m_ctx;
-			Span             m_span;
+			AVFormatContext                 *m_ctx;
+			std::vector<AVCodecParameters *> m_codecs;
+			Span                             m_span;
 	};
-
-	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span s) const {
-		return std::make_unique<VideoFileSource>(m_path, s);
-	}
 
 	void Concat::hash(Hasher& hasher) const {
 		hasher.add("_concat-filter_");
@@ -166,38 +184,27 @@ namespace vcat::filter {
 			NormalizeTimestamps(NormalizeTimestamps&) = delete;
 			NormalizeTimestamps() = delete;
 
-			NormalizeTimestamps(const Spanned<const VFilter&> videos)
-				: m_input(videos->get_pkts(videos.span))
+			NormalizeTimestamps(VideoFileSource&& video, Span s)
+				: m_input(std::move(video))
 				, m_first_packet(true)
 				, m_next(nullptr)
 				, m_has_next(false)
 				, m_prev_pkt_raw_pts(0)
-				, m_span(videos.span) {
-
-				for(const auto& stream : m_input->streams()) {
-					AVStream *new_stream = (AVStream *) std::malloc(sizeof(*new_stream));
-					std::memcpy(new_stream, stream, sizeof(*new_stream));
-
-					new_stream->time_base = av_make_q(1, 90000);
-					new_stream->start_time = 0;
-
-					m_ostreams.push_back(new_stream);
-				}
-			}
+				, m_span(s) {}
 
 			bool next_pkt(AVPacket **p_packet) {
 				if(m_has_next) {
 					std::swap(*p_packet, m_next);
 					m_has_next = false;
 				} else {
-					if(!m_input->next_pkt(p_packet)) {
+					if(!m_input.next_pkt(p_packet)) {
 						return false;
 					}
 				}
 
 				AVPacket *packet = *p_packet;
 
-				const int64_t start_time = m_input->streams()[packet->stream_index]->start_time;
+				const int64_t start_time = m_input.av_streams()[packet->stream_index]->start_time;
 
 				if(start_time == AV_NOPTS_VALUE || packet->pts == AV_NOPTS_VALUE) {
 					throw error::no_pts(m_span);
@@ -218,7 +225,7 @@ namespace vcat::filter {
 						error::handle_ffmpeg_error(m_span, m_next ? 0 : AVERROR_UNKNOWN);
 					}
 
-					if(m_input->next_pkt(&m_next)) {
+					if(m_input.next_pkt(&m_next)) {
 						m_has_next = true;
 
 						if(m_next->flags & AV_PKT_FLAG_DISPOSABLE) {
@@ -235,27 +242,20 @@ namespace vcat::filter {
 					}
 				}
 
-				const AVRational old_tb = m_input->streams()[packet->stream_index]->time_base;
-				const AVRational new_tb = av_make_q(1, 90000); // C++ compound literals 😭
+				const AVRational old_tb = m_input.av_streams()[packet->stream_index]->time_base;
 
-				packet->pts = av_rescale_q(packet->pts, old_tb, new_tb);
-				packet->dts = av_rescale_q(packet->dts, old_tb, new_tb);
-				packet->duration = av_rescale_q(packet->duration, old_tb, new_tb);
+				av_packet_rescale_ts(packet, old_tb, constants::TIMEBASE);
 
 				m_first_packet = false;
 
 				return true;
 			}
 
-			std::span<AVStream *> streams() {
-				return m_ostreams;
+			std::span<AVCodecParameters *> codecs() {
+				return m_input.codecs();
 			}
 
 			~NormalizeTimestamps() {
-				for(const auto& ostream : m_ostreams) {
-					std::free(ostream);
-				}
-
 				if(m_next) {
 					av_packet_free(&m_next);
 				}
@@ -263,7 +263,6 @@ namespace vcat::filter {
 
 			NormalizeTimestamps(NormalizeTimestamps&& o)
 				: m_input(std::move(o.m_input))
-				, m_ostreams(std::move(o.m_ostreams))
 				, m_first_packet(o.m_first_packet)
 				, m_next(o.m_next)
 				, m_has_next(o.m_has_next)
@@ -275,16 +274,19 @@ namespace vcat::filter {
 			}
 
 		private:
-			std::unique_ptr<PacketSource> m_input;
-			std::vector<AVStream *>       m_ostreams;
+			VideoFileSource                  m_input;
 
-			bool                          m_first_packet;
-			AVPacket                     *m_next;
-			bool                          m_has_next; // whether the next packet is stored in `m_next`
-			int64_t                       m_prev_pkt_raw_pts;
+			bool                             m_first_packet;
+			AVPacket                        *m_next;
+			bool                             m_has_next; // whether the next packet is stored in `m_next`
+			int64_t                          m_prev_pkt_raw_pts;
 
-			Span                          m_span;
+			Span                             m_span;
 	};
+
+	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span s) const {
+		return std::make_unique<NormalizeTimestamps>(VideoFileSource(m_path, s), s);
+	}
 
 	class ConcatSource : public PacketSource {
 		public:
@@ -297,8 +299,7 @@ namespace vcat::filter {
 				, m_last_pkt_pts(0)
 				, m_last_pkt_dur(0) {
 				for(const auto& video : videos) {
-					NormalizeTimestamps norm = NormalizeTimestamps(video);
-					m_videos.push_back(std::move(norm));
+					m_videos.push_back(video->get_pkts(video.span));
 				}
 			}
 
@@ -308,7 +309,7 @@ namespace vcat::filter {
 						return false;
 					}
 
-					if(m_videos[m_idx].next_pkt(p_packet)) {
+					if(m_videos[m_idx]->next_pkt(p_packet)) {
 						break;
 					} else {
 						m_offset = m_last_pkt_pts + m_last_pkt_dur;
@@ -329,19 +330,19 @@ namespace vcat::filter {
 				return true;
 			}
 
-			std::span<AVStream *> streams() {
-				return m_videos[0].streams();
+			std::span<AVCodecParameters *> codecs() {
+				return m_videos[0]->codecs();
 			}
 
 		private:
-			std::vector<NormalizeTimestamps> m_videos;
-			size_t                           m_idx;
+			std::vector<std::unique_ptr<PacketSource>> m_videos;
+			size_t                                     m_idx;
 
 			[[maybe_unused]]
-			Span                             m_span;
-			int64_t                          m_offset;
-			int64_t                          m_last_pkt_pts;
-			int64_t                          m_last_pkt_dur;
+			Span                                       m_span;
+			int64_t                                    m_offset;
+			int64_t                                    m_last_pkt_pts;
+			int64_t                                    m_last_pkt_dur;
 	};
 
 	std::unique_ptr<PacketSource> Concat::get_pkts(Span s) const {

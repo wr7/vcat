@@ -1,3 +1,4 @@
+#include "src/constants.hh"
 #include "src/eval/eobject.hh"
 #include "src/muxing/error.hh"
 #include "src/filter/filter.hh"
@@ -22,14 +23,14 @@ namespace vcat::muxing {
 		}
 
 		std::unique_ptr<filter::PacketSource> source = filter->get_pkts(span);
-		std::span<AVStream *> streams = source->streams();
+		std::span<AVCodecParameters *> streams = source->codecs();
 
 		AVFormatContext *output = nullptr;
 		error::handle_ffmpeg_error(
 			avformat_alloc_output_context2(&output, nullptr, nullptr, "output.mp4")
 		);
 
-		for(AVStream *istream : streams) {
+		for(AVCodecParameters *icodec : streams) {
 			AVStream *ostream = avformat_new_stream(output, nullptr);
 
 			error::handle_ffmpeg_error(
@@ -37,7 +38,7 @@ namespace vcat::muxing {
 			);
 
 			error::handle_ffmpeg_error(
-				avcodec_parameters_copy(ostream->codecpar, istream->codecpar)
+				avcodec_parameters_copy(ostream->codecpar, icodec)
 			);
 		}
 
@@ -57,13 +58,12 @@ namespace vcat::muxing {
 		);
 
 		while(source->next_pkt(&packet)) {
-			AVStream *istream = streams[packet->stream_index];
 			AVStream *ostream = output->streams[packet->stream_index];
 
 			packet->pos = -1;
-			packet->pts = av_rescale_q(packet->pts, istream->time_base, ostream->time_base);
-			packet->dts = av_rescale_q(packet->dts, istream->time_base, ostream->time_base);
-			packet->duration = av_rescale_q(packet->duration, istream->time_base, ostream->time_base);
+			packet->pts = av_rescale_q(packet->pts, constants::TIMEBASE, ostream->time_base);
+			packet->dts = av_rescale_q(packet->dts, constants::TIMEBASE, ostream->time_base);
+			packet->duration = av_rescale_q(packet->duration, constants::TIMEBASE, ostream->time_base);
 
 			error::handle_ffmpeg_error(
 				av_interleaved_write_frame(output, packet)

@@ -8,6 +8,7 @@
 
 extern "C" {
 	#include <libavcodec/packet.h>
+	#include "libavcodec/codec_par.h"
 	#include <libavformat/avformat.h>
 }
 
@@ -18,7 +19,7 @@ namespace vcat::filter {
 			//
 			// A double pointer is used to allow for more efficient 'look-ahead' buffers for filters
 			virtual bool next_pkt(AVPacket **packet) = 0;
-			virtual std::span<AVStream *> streams() = 0;
+			virtual std::span<AVCodecParameters *> codecs() = 0;
 			virtual ~PacketSource() = default;
 	};
 

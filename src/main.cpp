@@ -15,13 +15,14 @@ using vcat::Token;
 using vcat::parser::Expression;
 
 // TODO:
-// - create custom AVStream object used for PacketSource::streams()
+// - support user-specified codecs
 // - support multiple streams with concat filter
 // - automatically re-encode when using concat filter
 
 int main() {
 	std::string_view input_test = R"--(
         concat(
+            vopen("prism3.mp4"),
             repeat(
                 vopen("prism.mp4"),
                 5,
