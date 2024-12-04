@@ -35,6 +35,16 @@ namespace vcat::eval::error {
 		);
 	}
 
+
+	inline Diagnostic expected_positive_number(Span s, int64_t num) {
+		return Diagnostic(
+			std::format("Expected positive number; got negative number `{}`", num),
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
 	inline Diagnostic unexpected_arguments(Span s) {
 		return Diagnostic(
 			"Unexpected argument(s)",
@@ -42,6 +52,24 @@ namespace vcat::eval::error {
 				Hint::error("", s)
 			}
 		);
+	}
+
+	inline Diagnostic expected_argument_of_type(Span s, std::string_view expected, std::optional<std::reference_wrapper<const EObject>> got) {
+		if(got) {
+			return Diagnostic(
+				std::format("Expected argument of type `{}`; got `{}`", expected, got->get().type_name()),
+				{
+					Hint::error("", s)
+				}
+			);
+		} else {
+			return Diagnostic(
+				std::format("Expected argument of type `{}`", expected),
+				{
+					Hint::error("", s)
+				}
+			);
+		}
 	}
 
 	inline Diagnostic undefined_variable(Spanned<std::string_view> s) {

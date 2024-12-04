@@ -70,6 +70,9 @@ namespace vcat::eval {
 		if(expr.val == "concat") {
 			return pool.add<BuiltinFunction<builtins::concat, "concat">>();
 		}
+		if(expr.val == "repeat") {
+			return pool.add<BuiltinFunction<builtins::repeat, "repeat">>();
+		}
 
 		throw error::undefined_variable(expr);
 	}

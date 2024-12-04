@@ -63,5 +63,46 @@ namespace vcat::eval::builtins {
 
 		return pool.add<filter::Concat>(std::move(videos), args.span);
 	}
+
+	const EObject& repeat(EObjectPool& pool, Spanned<const EList&> args) {
+		if(args->elements().size() > 2) {
+			throw eval::error::unexpected_arguments(*span_of(args->elements().subspan(2)));
+		}
+
+		if(args->elements().size() == 0) {
+			throw eval::error::expected_argument_of_type(Span(args.span.start + args.span.length - 1, 1), "Object", {});
+		}
+
+		const EObject *reps_obj = nullptr;
+		if(args->elements().size() == 2) {
+			reps_obj = &*args->elements()[1];
+		}
+
+		const EInteger *num_reps = dynamic_cast<const EInteger *>(reps_obj);
+		if(!num_reps) {
+			std::optional<std::reference_wrapper<const EObject>> obj;
+			if(reps_obj) {
+				obj = *reps_obj;
+			}
+
+			throw eval::error::expected_argument_of_type(
+				reps_obj ? args->elements()[1].span : Span(args.span.start + args.span.length - 1, 1),
+				"Integer",
+				obj
+			);
+		}
+
+		if(**num_reps < 0) {
+			throw eval::error::expected_positive_number(args->elements()[1].span, **num_reps);
+		}
+
+		std::vector<Spanned<const EObject&>> elements;
+
+		for(int64_t i = 0; i < **num_reps; i++) {
+			elements.push_back(args->elements()[0]);
+		}
+
+		return pool.add<EList>(std::move(elements));
+	}
 }
 
