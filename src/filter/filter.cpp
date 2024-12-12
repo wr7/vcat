@@ -80,8 +80,11 @@ namespace vcat::filter {
 			VideoFileSource() = delete;
 
 			VideoFileSource(std::string_view path, Span span)
-				: m_ctx(NULL)
+				: m_ctx(avformat_alloc_context())
 				, m_span(span) {
+
+				m_ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
+
 				error::handle_ffmpeg_error(m_span,
 					avformat_open_input(&m_ctx, path.data(), NULL, NULL)
 				);
@@ -99,14 +102,19 @@ namespace vcat::filter {
 				assert(m_ctx);
 			}
 
-			bool next_pkt(AVPacket **packet) {
-				int ret_code = av_read_frame(m_ctx, *packet);
+			bool next_pkt(AVPacket **p_packet) {
+				int ret_code = av_read_frame(m_ctx, *p_packet);
 
 				if(ret_code == AVERROR_EOF) {
 					return false;
 				}
 
 				error::handle_ffmpeg_error(m_span, ret_code);
+
+				AVPacket *const packet = *p_packet;
+				const AVRational old_timebase = m_ctx->streams[packet->stream_index]->time_base;
+
+				av_packet_rescale_ts(packet, old_timebase, constants::TIMEBASE);
 
 				return true;
 			}
@@ -176,116 +184,8 @@ namespace vcat::filter {
 		return "Concat";
 	}
 
-	// Recalculates the timestamps in a video so that:
-	// 1. The pts and dts of the streams start at 0
-	// 2. The timebase is 90kHz
-	class NormalizeTimestamps : public PacketSource {
-		public:
-			NormalizeTimestamps(NormalizeTimestamps&) = delete;
-			NormalizeTimestamps() = delete;
-
-			NormalizeTimestamps(VideoFileSource&& video, Span s)
-				: m_input(std::move(video))
-				, m_first_packet(true)
-				, m_next(nullptr)
-				, m_has_next(false)
-				, m_prev_pkt_raw_pts(0)
-				, m_span(s) {}
-
-			bool next_pkt(AVPacket **p_packet) {
-				if(m_has_next) {
-					std::swap(*p_packet, m_next);
-					m_has_next = false;
-				} else {
-					if(!m_input.next_pkt(p_packet)) {
-						return false;
-					}
-				}
-
-				AVPacket *packet = *p_packet;
-
-				const int64_t start_time = m_input.av_streams()[packet->stream_index]->start_time;
-
-				if(start_time == AV_NOPTS_VALUE || packet->pts == AV_NOPTS_VALUE) {
-					throw error::no_pts(m_span);
-				}
-
-				packet->pts -= start_time;
-				packet->dts -= start_time;
-				m_prev_pkt_raw_pts = packet->pts;
-
-				assert((*p_packet)->pts >= 0);
-
-				// reconstruct dts without breaking B-Frames
-				if(m_first_packet || (packet->flags & AV_PKT_FLAG_DISPOSABLE)) {
-					packet->dts = packet->pts; // for non-reference frames/the first frame, this is really easy
-				} else {
-					if(!m_next) {
-						m_next = av_packet_alloc();
-						error::handle_ffmpeg_error(m_span, m_next ? 0 : AVERROR_UNKNOWN);
-					}
-
-					if(m_input.next_pkt(&m_next)) {
-						m_has_next = true;
-
-						if(m_next->flags & AV_PKT_FLAG_DISPOSABLE) {
-							// we will assume that the next packet is a B frame and that it is the first frame (pts-wise)
-							// that depends on this frame
-
-							// ceiling mean that does not overflow
-							packet->dts = m_prev_pkt_raw_pts / 2 + m_next->pts / 2 + ((m_prev_pkt_raw_pts | m_next->pts) & 1);
-						} else {
-							packet->dts = packet->pts;
-						}
-					} else {
-						packet->dts = packet->pts;
-					}
-				}
-
-				const AVRational old_tb = m_input.av_streams()[packet->stream_index]->time_base;
-
-				av_packet_rescale_ts(packet, old_tb, constants::TIMEBASE);
-
-				m_first_packet = false;
-
-				return true;
-			}
-
-			std::span<AVCodecParameters *> codecs() {
-				return m_input.codecs();
-			}
-
-			~NormalizeTimestamps() {
-				if(m_next) {
-					av_packet_free(&m_next);
-				}
-			}
-
-			NormalizeTimestamps(NormalizeTimestamps&& o)
-				: m_input(std::move(o.m_input))
-				, m_first_packet(o.m_first_packet)
-				, m_next(o.m_next)
-				, m_has_next(o.m_has_next)
-				, m_prev_pkt_raw_pts(o.m_prev_pkt_raw_pts)
-				, m_span(o.m_span)
-			{
-
-				o.m_next = nullptr;
-			}
-
-		private:
-			VideoFileSource                  m_input;
-
-			bool                             m_first_packet;
-			AVPacket                        *m_next;
-			bool                             m_has_next; // whether the next packet is stored in `m_next`
-			int64_t                          m_prev_pkt_raw_pts;
-
-			Span                             m_span;
-	};
-
 	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span s) const {
-		return std::make_unique<NormalizeTimestamps>(VideoFileSource(m_path, s), s);
+		return std::make_unique<VideoFileSource>(m_path, s);
 	}
 
 	class ConcatSource : public PacketSource {
