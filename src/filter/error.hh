@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/error.hh"
+#include <cstring>
 #include <format>
 #include <string_view>
 
@@ -32,6 +33,15 @@ namespace vcat::filter::error {
 	inline Diagnostic no_pts(Span s) {
 		return Diagnostic(
 			"No pts value found for frame",
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
+	inline Diagnostic failed_file_open(Span s, std::string_view filename) {
+		return Diagnostic(
+			std::format("Failed to open file `{}`: {}", filename, strerror(errno)),
 			{
 				Hint::error("", s)
 			}

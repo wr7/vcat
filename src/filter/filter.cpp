@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <format>
@@ -21,8 +22,10 @@
 #include <vector>
 
 extern "C" {
-	#include <libavformat/avformat.h>
 	#include <libavcodec/packet.h>
+	#include <libavformat/avformat.h>
+	#include <libavformat/avio.h>
+	#include <libavutil/mem.h>
 	#include <libavutil/avutil.h>
 	#include <libavutil/buffer.h>
 	#include <libavutil/mathematics.h>
@@ -75,18 +78,61 @@ namespace vcat::filter {
 		return "VideoFile";
 	}
 
+	static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
+		FILE *avio_ctx = (FILE *) opaque;
+
+		errno = 0;
+		size_t a = fread(buf, 1, buf_size, avio_ctx);
+		if (errno != 0) {
+			return AVERROR(errno);
+		}
+
+		return a;
+	}
+
+	static int64_t seek_func(void *opaque, int64_t offset, int whence)
+	{
+		FILE *file = (FILE *) opaque;
+
+		if (fseek(file, offset, whence) != 0) {
+			return AVERROR(errno);
+		}
+
+		return ftell(file);
+	}
+
+	struct DtsInfo {
+		int64_t dts;
+		int64_t duration;
+	};
+
 	class VideoFileSource : public PacketSource {
+		private:
+			AVFormatContext                 *m_ctx;
+			std::vector<AVCodecParameters *> m_codecs;
+			Span                             m_span;
+			std::vector<DtsInfo>             m_dts_end_info; //< The dts and duration of the last packet (dts-wise) in each stream
+
+			AVIOContext                     *m_io_ctx;
 		public:
 			VideoFileSource() = delete;
 
-			VideoFileSource(std::string_view path, Span span)
+			VideoFileSource(const std::string& path, Span span)
 				: m_ctx(avformat_alloc_context())
-				, m_span(span) {
+				, m_span(span)
+				, m_io_ctx(nullptr) {
+
+				recreate_io_ctx(path);
+
+				calculate_last_dts_info(path);
+
+				recreate_io_ctx(path); // FFMPEG does not like it if you re-use the same avio context
 
 				m_ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
+				m_ctx->pb = m_io_ctx;
 
 				error::handle_ffmpeg_error(m_span,
-					avformat_open_input(&m_ctx, path.data(), NULL, NULL)
+					avformat_open_input(&m_ctx, path.c_str(), NULL, NULL)
 				);
 
 				error::handle_ffmpeg_error(m_span,
@@ -98,8 +144,6 @@ namespace vcat::filter {
 				for(AVStream *stream : av_streams()) {
 					m_codecs.push_back(stream->codecpar);
 				}
-
-				assert(m_ctx);
 			}
 
 			bool next_pkt(AVPacket **p_packet) {
@@ -131,20 +175,91 @@ namespace vcat::filter {
 				if(m_ctx != nullptr) {
 					avformat_close_input(&m_ctx);
 				}
+
+				if(m_io_ctx) {
+					av_free(m_io_ctx->buffer);
+					m_io_ctx->buffer = nullptr;
+
+					fclose((FILE *) m_io_ctx->opaque);
+
+					avio_context_free(&m_io_ctx);
+				}
 			}
 
 			VideoFileSource(VideoFileSource&& old)
 				: m_ctx(old.m_ctx)
 				, m_codecs(std::move(old.m_codecs))
 				, m_span(old.m_span)
+				, m_io_ctx(old.m_io_ctx)
 			{
 				old.m_ctx = nullptr;
+				old.m_io_ctx = nullptr;
 			}
 
 		private:
-			AVFormatContext                 *m_ctx;
-			std::vector<AVCodecParameters *> m_codecs;
-			Span                             m_span;
+			// Calculates `m_dts_info`
+			//
+			// NOTE: this should be called before the main AVFormatContext is created
+			// and this will consume the AVIO context
+			void calculate_last_dts_info(const std::string& path) {
+				AVFormatContext *ctx = avformat_alloc_context();
+				ctx->pb = m_io_ctx;
+				ctx->flags |= AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
+
+				error::handle_ffmpeg_error(m_span,
+					avformat_open_input(&ctx, path.c_str(), NULL, NULL)
+				);
+
+				m_dts_end_info.insert(m_dts_end_info.end(), ctx->nb_streams, DtsInfo());
+
+				AVPacket *pkt = av_packet_alloc();
+
+				while(int res = av_read_frame(ctx, pkt) != AVERROR_EOF) {
+					error::handle_ffmpeg_error(m_span, res);
+
+					av_packet_rescale_ts(pkt, ctx->streams[pkt->stream_index]->time_base, constants::TIMEBASE);
+
+					if(pkt->dts >= m_dts_end_info[pkt->stream_index].dts) {
+						DtsInfo& packet_info = m_dts_end_info[pkt->stream_index];
+
+						packet_info.dts = pkt->dts;
+						packet_info.duration = pkt->duration;
+					}
+
+					av_packet_unref(pkt);
+				}
+
+				av_packet_free(&pkt);
+				avformat_close_input(&ctx);
+			}
+
+			// Creates or re-creates the io context
+			void recreate_io_ctx(const std::string& path) {
+				if(!m_io_ctx) {
+					errno = 0;
+					FILE *fp = fopen(path.c_str(), "rb");  
+
+					if(errno != 0) {
+						throw error::failed_file_open(m_span, path);
+					}
+
+					uint8_t *buffer = (decltype(buffer)) av_malloc(4096);
+					m_io_ctx = avio_alloc_context(buffer, 4096, 0, fp, read_packet, NULL, seek_func);
+				} else {
+					int res = fseek((FILE *) m_io_ctx->opaque, 0, SEEK_SET);
+					if(res != 0) {
+						throw error::failed_file_open(m_span, path);
+					}
+
+					uint8_t *buffer = m_io_ctx->buffer;
+					int buffer_size = m_io_ctx->buffer_size;
+					FILE *fp = (FILE *) m_io_ctx->opaque;
+
+					avio_context_free(&m_io_ctx);
+					m_io_ctx = avio_alloc_context(buffer, buffer_size, 0, fp, read_packet, NULL, seek_func);
+				}
+			}
+
 	};
 
 	void Concat::hash(Hasher& hasher) const {
