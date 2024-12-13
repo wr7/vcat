@@ -21,13 +21,7 @@ using vcat::parser::Expression;
 
 int main() {
 	std::string_view input_test = R"--(
-        concat(
-            vopen("prism3.mp4"),
-            repeat(
-                vopen("prism.mp4"),
-                5,
-            )
-        )
+        vopen("small_bunny_1080p_60fps.mp4")
 	)--";
 	vcat::Lexer lexer = vcat::Lexer(input_test);
 

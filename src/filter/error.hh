@@ -48,6 +48,15 @@ namespace vcat::filter::error {
 		);
 	}
 
+	inline Diagnostic no_video(Span s, std::string_view filename) {
+		return Diagnostic(
+			std::format("No video stream found in file `{}`", filename),
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
 	inline void handle_ffmpeg_error(Span s, int err_code) {
 		if(err_code < 0) {
 			char msg[AV_ERROR_MAX_STRING_SIZE] = {0};

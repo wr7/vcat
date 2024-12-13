@@ -23,24 +23,22 @@ namespace vcat::muxing {
 		}
 
 		std::unique_ptr<filter::PacketSource> source = filter->get_pkts(span);
-		std::span<AVCodecParameters *> streams = source->codecs();
+		AVCodecParameters *ivcodec = source->video_codec();
 
 		AVFormatContext *output = nullptr;
 		error::handle_ffmpeg_error(
 			avformat_alloc_output_context2(&output, nullptr, nullptr, "output.mp4")
 		);
 
-		for(AVCodecParameters *icodec : streams) {
-			AVStream *ostream = avformat_new_stream(output, nullptr);
+		AVStream *ostream = avformat_new_stream(output, nullptr);
 
-			error::handle_ffmpeg_error(
-				ostream ? 0 : AVERROR_UNKNOWN
-			);
+		error::handle_ffmpeg_error(
+			ostream ? 0 : AVERROR_UNKNOWN
+		);
 
-			error::handle_ffmpeg_error(
-				avcodec_parameters_copy(ostream->codecpar, icodec)
-			);
-		}
+		error::handle_ffmpeg_error(
+			avcodec_parameters_copy(ostream->codecpar, ivcodec)
+		);
 
 		if(!(output->flags & AVFMT_NOFILE)) {
 			error::handle_ffmpeg_error(

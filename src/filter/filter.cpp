@@ -109,9 +109,9 @@ namespace vcat::filter {
 	class VideoFileSource : public PacketSource {
 		private:
 			AVFormatContext                 *m_ctx;
-			std::vector<AVCodecParameters *> m_codecs;
 			Span                             m_span;
-			std::vector<DtsInfo>             m_dts_end_info; //< The dts and duration of the last packet (dts-wise) in each stream
+			DtsInfo                          m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
+			int64_t                          m_video_idx;
 
 			AVIOContext                     *m_io_ctx;
 		public:
@@ -124,9 +124,9 @@ namespace vcat::filter {
 
 				recreate_io_ctx(path);
 
-				calculate_last_dts_info(path);
+				calculate_info(path);
 
-				recreate_io_ctx(path); // FFMPEG does not like it if you re-use the same avio context
+				recreate_io_ctx(path);
 
 				m_ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
 				m_ctx->pb = m_io_ctx;
@@ -138,15 +138,10 @@ namespace vcat::filter {
 				error::handle_ffmpeg_error(m_span,
 					avformat_find_stream_info(m_ctx, NULL)
 				);
-
-				m_codecs.reserve(av_streams().size());
-
-				for(AVStream *stream : av_streams()) {
-					m_codecs.push_back(stream->codecpar);
-				}
 			}
 
 			bool next_pkt(AVPacket **p_packet) {
+				start:
 				int ret_code = av_read_frame(m_ctx, *p_packet);
 
 				if(ret_code == AVERROR_EOF) {
@@ -156,6 +151,14 @@ namespace vcat::filter {
 				error::handle_ffmpeg_error(m_span, ret_code);
 
 				AVPacket *const packet = *p_packet;
+
+				if(packet->stream_index == m_video_idx) {
+					packet->stream_index = 0;
+				} else {
+					av_packet_unref(packet);
+					goto start;
+				}
+
 				const AVRational old_timebase = m_ctx->streams[packet->stream_index]->time_base;
 
 				av_packet_rescale_ts(packet, old_timebase, constants::TIMEBASE);
@@ -163,8 +166,8 @@ namespace vcat::filter {
 				return true;
 			}
 
-			std::span<AVCodecParameters *> codecs() {
-				return m_codecs;
+			AVCodecParameters *video_codec() {
+				return m_ctx->streams[m_video_idx]->codecpar;
 			}
 
 			std::span<AVStream *> av_streams() {
@@ -188,7 +191,6 @@ namespace vcat::filter {
 
 			VideoFileSource(VideoFileSource&& old)
 				: m_ctx(old.m_ctx)
-				, m_codecs(std::move(old.m_codecs))
 				, m_span(old.m_span)
 				, m_io_ctx(old.m_io_ctx)
 			{
@@ -197,11 +199,11 @@ namespace vcat::filter {
 			}
 
 		private:
-			// Calculates `m_dts_info`
+			// Walks through the file to calculate `m_dts_end_info` and `video_idx`
 			//
-			// NOTE: this should be called before the main AVFormatContext is created
+			// NOTE: this should be called before the main AVFormatContext is created,
 			// and this will consume the AVIO context
-			void calculate_last_dts_info(const std::string& path) {
+			void calculate_info(const std::string& path) {
 				AVFormatContext *ctx = avformat_alloc_context();
 				ctx->pb = m_io_ctx;
 				ctx->flags |= AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
@@ -210,7 +212,22 @@ namespace vcat::filter {
 					avformat_open_input(&ctx, path.c_str(), NULL, NULL)
 				);
 
-				m_dts_end_info.insert(m_dts_end_info.end(), ctx->nb_streams, DtsInfo());
+				error::handle_ffmpeg_error(m_span,
+					avformat_find_stream_info(ctx, NULL)
+				);
+
+				bool has_video_idx = false;
+				for(size_t i = 0; i < ctx->nb_streams; i++) {
+					if(ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+						m_video_idx = i;
+						has_video_idx = true;
+						break;
+					}
+				}
+
+				if(!has_video_idx) {
+					throw error::no_video(m_span, path);
+				}
 
 				AVPacket *pkt = av_packet_alloc();
 
@@ -219,8 +236,8 @@ namespace vcat::filter {
 
 					av_packet_rescale_ts(pkt, ctx->streams[pkt->stream_index]->time_base, constants::TIMEBASE);
 
-					if(pkt->dts >= m_dts_end_info[pkt->stream_index].dts) {
-						DtsInfo& packet_info = m_dts_end_info[pkt->stream_index];
+					if(pkt->stream_index == m_video_idx && pkt->dts >= m_dts_end_info.dts) {
+						DtsInfo& packet_info = m_dts_end_info;
 
 						packet_info.dts = pkt->dts;
 						packet_info.duration = pkt->duration;
@@ -345,8 +362,8 @@ namespace vcat::filter {
 				return true;
 			}
 
-			std::span<AVCodecParameters *> codecs() {
-				return m_videos[0]->codecs();
+			AVCodecParameters *video_codec() {
+				return m_videos[0]->video_codec();
 			}
 
 		private:
