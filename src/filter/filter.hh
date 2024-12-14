@@ -13,6 +13,11 @@ extern "C" {
 }
 
 namespace vcat::filter {
+	struct TsInfo {
+		int64_t ts;
+		int64_t duration;
+	};
+
 	class PacketSource {
 		public:
 			// Gets the next packet or returns false if `EOF` is reached
@@ -20,6 +25,9 @@ namespace vcat::filter {
 			// A double pointer is used to allow for more efficient 'look-ahead' buffers for filters
 			virtual bool next_pkt(AVPacket **packet) = 0;
 			virtual AVCodecParameters *video_codec() = 0;
+			virtual TsInfo  dts_end_info() const = 0;
+			virtual int64_t dts_start() const = 0;
+			virtual TsInfo  pts_end_info() const = 0;
 			virtual ~PacketSource() = default;
 	};
 

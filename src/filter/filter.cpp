@@ -101,19 +101,16 @@ namespace vcat::filter {
 		return ftell(file);
 	}
 
-	struct DtsInfo {
-		int64_t dts;
-		int64_t duration;
-	};
-
 	class VideoFileSource : public PacketSource {
 		private:
-			AVFormatContext                 *m_ctx;
-			Span                             m_span;
-			DtsInfo                          m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
-			int64_t                          m_video_idx;
+			AVFormatContext *m_ctx;
+			Span             m_span;
+			int64_t          m_dts_start;
+			TsInfo           m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
+			TsInfo           m_pts_end_info; //< The pts and duration of the last video packet (pts-wise) in each stream
+			int64_t          m_video_idx;
 
-			AVIOContext                     *m_io_ctx;
+			AVIOContext     *m_io_ctx;
 		public:
 			VideoFileSource() = delete;
 
@@ -174,6 +171,18 @@ namespace vcat::filter {
 				return std::span<AVStream *>(m_ctx->streams, m_ctx->nb_streams);
 			}
 
+			TsInfo dts_end_info() const {
+				return m_dts_end_info;
+			}
+
+			int64_t dts_start() const {
+				return m_dts_start;
+			}
+
+			TsInfo pts_end_info() const {
+				return m_pts_end_info;
+			}
+
 			~VideoFileSource() {
 				if(m_ctx != nullptr) {
 					avformat_close_input(&m_ctx);
@@ -199,7 +208,7 @@ namespace vcat::filter {
 			}
 
 		private:
-			// Walks through the file to calculate `m_dts_end_info` and `video_idx`
+			// Walks through the file to calculate `m_dts_start`, `m_dts_end_info`, `m_pts_end_info`, and `video_idx`
 			//
 			// NOTE: this should be called before the main AVFormatContext is created,
 			// and this will consume the AVIO context
@@ -229,18 +238,35 @@ namespace vcat::filter {
 					throw error::no_video(m_span, path);
 				}
 
+				m_dts_end_info = {0, 0};
+				m_pts_end_info = {0, 0};
+				m_dts_start = 0;
+
 				AVPacket *pkt = av_packet_alloc();
 
 				while(int res = av_read_frame(ctx, pkt) != AVERROR_EOF) {
 					error::handle_ffmpeg_error(m_span, res);
 
-					av_packet_rescale_ts(pkt, ctx->streams[pkt->stream_index]->time_base, constants::TIMEBASE);
+					if(pkt->stream_index == m_video_idx) {
+						av_packet_rescale_ts(pkt, ctx->streams[pkt->stream_index]->time_base, constants::TIMEBASE);
 
-					if(pkt->stream_index == m_video_idx && pkt->dts >= m_dts_end_info.dts) {
-						DtsInfo& packet_info = m_dts_end_info;
+						if(pkt->dts >= m_dts_end_info.ts) {
+							TsInfo& packet_info = m_dts_end_info;
 
-						packet_info.dts = pkt->dts;
-						packet_info.duration = pkt->duration;
+							packet_info.ts = pkt->dts;
+							packet_info.duration = pkt->duration;
+						}
+
+						if(pkt->dts < m_dts_start) {
+							m_dts_start = pkt->dts;
+						}
+
+						if(pkt->pts >= m_pts_end_info.ts) {
+							TsInfo& packet_info = m_pts_end_info;
+
+							packet_info.ts = pkt->pts;
+							packet_info.duration = pkt->duration;
+						}
 					}
 
 					av_packet_unref(pkt);
@@ -326,13 +352,12 @@ namespace vcat::filter {
 
 			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span)
 				: m_idx(0)
-				, m_span(span)
-				, m_offset(0)
-				, m_last_pkt_pts(0)
-				, m_last_pkt_dur(0) {
+				, m_span(span) {
 				for(const auto& video : videos) {
 					m_videos.push_back(video->get_pkts(video.span));
 				}
+
+				calculate_ts_offsets();
 			}
 
 			bool next_pkt(AVPacket **p_packet) {
@@ -344,20 +369,14 @@ namespace vcat::filter {
 					if(m_videos[m_idx]->next_pkt(p_packet)) {
 						break;
 					} else {
-						m_offset = m_last_pkt_pts + m_last_pkt_dur;
 						m_idx++;
 					}
 				}
 
 				AVPacket *packet = *p_packet;
 
-				packet->pts += m_offset;
-				packet->dts += m_offset;
-
-				if(packet->pts >= m_last_pkt_pts) {
-					m_last_pkt_pts = packet->pts;
-					m_last_pkt_dur = packet->duration;
-				}
+				packet->pts += m_pts_offsets[m_idx];
+				packet->dts += m_dts_offsets[m_idx];
 
 				return true;
 			}
@@ -366,15 +385,84 @@ namespace vcat::filter {
 				return m_videos[0]->video_codec();
 			}
 
+			TsInfo dts_end_info() const {
+				TsInfo ts_info = m_videos.back()->dts_end_info();
+
+				ts_info.ts += m_dts_offsets.back();
+				return ts_info;
+			}
+
+			int64_t dts_start() const {
+				return m_videos.front()->dts_start() + m_videos.front()->dts_start();
+			}
+
+			TsInfo pts_end_info() const {
+				TsInfo ts_info = m_videos.back()->pts_end_info();
+
+				ts_info.ts += m_pts_offsets.back();
+				return ts_info;
+			}
+
 		private:
+			void calculate_ts_offsets() {
+				assert(!m_videos.empty());
+
+				m_dts_offsets.reserve(m_videos.size());
+				m_pts_offsets.reserve(m_videos.size());
+
+				{ // Calculate pts offsets //
+					size_t pts_offset = 0;
+
+					for(auto& vid : m_videos) {
+						m_pts_offsets.push_back(pts_offset);
+
+						TsInfo pts_info = vid->pts_end_info();
+						pts_offset += pts_info.ts + pts_info.duration;
+					}
+				}
+
+				{ // Calculate dts offsets //
+					m_dts_offsets.push_back(m_pts_offsets.back());;
+
+					if(m_videos.size() == 1) {
+						return;
+					}
+
+					int64_t end = m_pts_offsets.back() + m_videos.back()->dts_start();
+
+					for(size_t i = m_videos.size() - 1; i-- > 0;) {
+						const auto& video = m_videos[i];
+
+						const TsInfo  old_end   = video->dts_end_info();
+						const int64_t old_start = video->dts_start();
+
+						const int64_t new_pts_start = m_pts_offsets[i];
+						const int64_t new_end   = end - old_end.duration;
+						const int64_t new_start = new_end - (old_end.ts - old_start);
+
+						const int64_t max_new_start = new_pts_start + old_start;
+
+						if(new_start > max_new_start) {
+							m_dts_offsets.push_back(max_new_start - old_start);
+							end = max_new_start;
+							continue;
+						}
+
+						m_dts_offsets.push_back(new_start - old_start);
+						end = new_start;
+					}
+
+					std::reverse(m_dts_offsets.begin(), m_dts_offsets.end());
+				}
+			}
+
 			std::vector<std::unique_ptr<PacketSource>> m_videos;
+			std::vector<int64_t>                       m_dts_offsets; //< How much the dts of every packet in the videos should be offset
+			std::vector<int64_t>                       m_pts_offsets; //< How much the pts of every packet in the videos should be offset
 			size_t                                     m_idx;
 
 			[[maybe_unused]]
 			Span                                       m_span;
-			int64_t                                    m_offset;
-			int64_t                                    m_last_pkt_pts;
-			int64_t                                    m_last_pkt_dur;
 	};
 
 	std::unique_ptr<PacketSource> Concat::get_pkts(Span s) const {
