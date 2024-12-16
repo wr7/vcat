@@ -39,7 +39,7 @@ namespace vcat::parser {
 		Expression e;
 
 		e.m_type = Type::List;
-		new(&e.m_list) std::vector<Spanned<Expression>>(std::move(vals));
+		new(&e.m_list) List(std::move(vals));
 
 		return e;
 	}
@@ -58,6 +58,15 @@ namespace vcat::parser {
 
 		e.m_type = Type::FieldAccess;
 		new(&e.m_field_access) FieldAccess(std::move(lhs), std::move(rhs));
+
+		return e;
+	}
+
+	Expression Expression::set(std::vector<Set::Entry>&& entries) {
+		Expression e;
+
+		e.m_type = Type::Set;
+		new(&e.m_set) Set(std::move(entries));
 
 		return e;
 	}
@@ -102,20 +111,30 @@ namespace vcat::parser {
 		return std::cref(m_function_call);
 	}
 
+	OptionalRef<const Set> Expression::as_set() const {
+		if(m_type != Type::Set) {
+			return {};
+		}
+
+		return std::cref(m_set);
+	}
+
 	Expression::~Expression() {
 		switch(m_type) {
 			case Type::Variable:
 				m_variable.std::string::~string(); return;
 			case Type::Number:
-				m_number.std::string::~string(); return;
+				m_number.std::string::~string();   return;
 			case Type::String:
 				m_string.std::string::~string();   return;
 			case Type::List:
-				m_list.~List();                      return;
+				m_list.~List();                    return;
 			case Type::FunctionCall:
 				m_function_call.~FunctionCall();   return;
 			case Type::FieldAccess:
 				m_field_access.~FieldAccess();     return;
+			case Type::Set:
+				m_set.~Set();                      return;
 		}
 
 		std::abort(); // unreachable
@@ -143,6 +162,8 @@ namespace vcat::parser {
 			case Type::FieldAccess:
 				new(&m_field_access) FieldAccess(std::move(old.m_field_access));
 				return;
+			case Type::Set:
+				new(&m_set) Set(std::move(old.m_set));
 		}
 
 		std::abort(); // unreachable
@@ -206,6 +227,22 @@ namespace vcat::parser {
 		return std::move(s).str();
 	}
 
+	std::string Set::to_string() const {
+		if(m_entries.empty()) {
+			return "Set {}\n";
+		}
+
+		std::stringstream s;
+
+		s << "Set {\n";
+		for(const Entry& e: m_entries) {
+			s << indent(*e.key + ": " + e.value->to_string()) << ",\n";
+		}
+		s << "}";
+
+		return std::move(s).str();
+	}
+
 	std::string Expression::to_string() const {
 		switch(m_type) {
 			case Type::Variable:
@@ -220,6 +257,8 @@ namespace vcat::parser {
 				return m_function_call.to_string();
 			case Type::FieldAccess:
 				return m_field_access.to_string();
+			case Type::Set:
+				return m_set.to_string();
 		}
 
 		std::abort(); // unreachable

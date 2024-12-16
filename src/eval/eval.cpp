@@ -29,6 +29,8 @@ namespace vcat::eval {
 				return evaluate_function_call(pool, expr.map([](const auto& e) -> const auto& {return e.as_function_call()->get();}));
 			case parser::Expression::Type::FieldAccess:
 				throw; // unimplemented
+			case parser::Expression::Type::Set:
+				throw; // unimplemented
 		}
 
 		throw;

@@ -17,8 +17,23 @@ namespace vcat::parser {
 			List(List&) = delete;
 			List(List&&) = default;
 
+			inline List(std::vector<Spanned<Expression>>&& entries);
+
 			std::string to_string() const;
 			std::vector<Spanned<Expression>> m_elements;
+	};
+
+	struct Set {
+		struct Entry;
+
+		public:
+			Set(Set&) = delete;
+			Set(Set&&) = default;
+
+			inline Set(std::vector<Entry>&& entries);
+
+			std::string to_string() const;
+			std::vector<Entry> m_entries;
 	};
 
 	struct FieldAccess {
@@ -53,6 +68,7 @@ namespace vcat::parser {
 			static Expression list(std::vector<Spanned<Expression>>&&);
 			static Expression function_call(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args);
 			static Expression field_access(Spanned<Expression>&& lhs, Spanned<std::string>&& rhs);
+			static Expression set(std::vector<Set::Entry>&& entries);
 
 			std::string to_string() const;
 
@@ -61,6 +77,7 @@ namespace vcat::parser {
 			std::optional<std::string_view> as_string() const;
 			OptionalRef<const List> as_list() const;
 			OptionalRef<const FunctionCall> as_function_call() const;
+			OptionalRef<const Set> as_set() const;
 
 			enum struct Type {
 				Variable,
@@ -69,6 +86,7 @@ namespace vcat::parser {
 				List,
 				FunctionCall,
 				FieldAccess,
+				Set,
 			};
 
 			constexpr Type type() const {
@@ -89,7 +107,13 @@ namespace vcat::parser {
 				List         m_list;
 				FunctionCall m_function_call;
 				FieldAccess  m_field_access;
+				Set          m_set;
 			};
+	};
+
+	struct Set::Entry {
+		Spanned<std::string> key;
+		Spanned<Expression>  value;
 	};
 
 	inline FunctionCall::FunctionCall(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args)
@@ -100,4 +124,10 @@ namespace vcat::parser {
 		: m_lhs(std::make_unique<Spanned<Expression>>(std::move(lhs)))
 		, m_rhs(std::move(rhs))
 		{}
+
+	inline Set::Set(std::vector<Entry>&& entries)
+		: m_entries(std::move(entries)){}
+
+	inline List::List(std::vector<Spanned<Expression>>&& elements)
+		: m_elements(std::move(elements)) {}
 }

@@ -23,7 +23,7 @@ int main() {
 	std::string_view input_test = R"--(
     concat(
         vopen("prism.mp4"),
-        vopen("prism4.mp4"),
+        vopen("prism3.mp4"),
     )
 	)--";
 	vcat::Lexer lexer = vcat::Lexer(input_test);
