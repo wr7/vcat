@@ -112,6 +112,10 @@ namespace vcat::parser {
 	};
 
 	struct Set::Entry {
+		Entry(Spanned<std::string>&& key, Spanned<Expression>&& value)
+			: key(std::move(key))
+			, value(std::move(value)) {}
+
 		Spanned<std::string> key;
 		Spanned<Expression>  value;
 	};

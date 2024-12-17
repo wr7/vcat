@@ -1,6 +1,8 @@
 #pragma once
 
+#include <format>
 #include "src/error.hh"
+#include "src/lexer/token.hh"
 
 using Hint = vcat::Diagnostic::Hint;
 
@@ -47,6 +49,33 @@ namespace vcat::parser::error {
 			"Expected expression",
 			{
 				Hint::error("Expected expression here", span),
+			}
+		);
+	}
+
+	inline Diagnostic expected_attribute_name(Spanned<const Token&> got) {
+		return Diagnostic(
+			std::format("Expected attribute name (string or identifier); got `{}`", got->to_string()),
+			{
+				Hint::error("", got.span),
+			}
+		);
+	}
+
+	inline Diagnostic expected_token(const Token& expected, Spanned<const Token&> got) {
+		return Diagnostic(
+			std::format("Expected token `{}`; got `{}`", expected.to_string(), got->to_string()),
+			{
+				Hint::error("", got.span)
+			}
+		);
+	}
+
+	inline Diagnostic expected_token(const Token& expected, Span got) {
+		return Diagnostic(
+			std::format("Expected token `{}`", expected.to_string()),
+			{
+				Hint::error("", got)
 			}
 		);
 	}

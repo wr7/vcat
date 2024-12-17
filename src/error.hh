@@ -24,8 +24,11 @@ namespace vcat {
 	class Span {
 		public:
 			constexpr inline Span(size_t start, size_t length): start(start), length(length) {};
+			constexpr Span span_after() const {return Span(start + length, 0);}
+
 			size_t start;
 			size_t length;
+
 			Span() = delete;
 	};
 

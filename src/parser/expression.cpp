@@ -164,6 +164,7 @@ namespace vcat::parser {
 				return;
 			case Type::Set:
 				new(&m_set) Set(std::move(old.m_set));
+				return;
 		}
 
 		std::abort(); // unreachable

@@ -8,7 +8,6 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>
-#include <ranges>
 #include <span>
 #include <string>
 
@@ -53,6 +52,7 @@ namespace vcat::parser {
 			try_parse_string,
 			try_parse_parenthized_expression,
 			try_parse_function_call,
+			try_parse_set,
 			try_parse_list,
 			try_parse_field_access,
 		};
@@ -133,6 +133,29 @@ namespace vcat::parser {
 		}
 
 		return std::move(expr->val);
+	}
+
+	static std::vector<Set::Entry> parse_set_entries(TokenStream tokens);
+
+	std::optional<Expression> try_parse_set(TokenStream tokens) {
+		NonBracketed iter = tokens;
+
+		auto opening_brace = iter.next();
+		if(!opening_brace || *opening_brace->get() != Token("{")) {
+			return {};
+		}
+
+		auto closing_brace = iter.next();
+		assert(closing_brace && *closing_brace->get() == Token("}"));
+
+		if(iter.next()) {
+			return {};
+		}
+
+		TokenStream entry_tokens = tokens.subspan(1, tokens.size() - 2);
+		std::vector<Set::Entry> entries = parse_set_entries(entry_tokens);
+
+		return Expression::set(std::move(entries));
 	}
 
 	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens);
@@ -240,5 +263,82 @@ namespace vcat::parser {
 		}
 
 		return expressions;
+	}
+
+	static std::optional<Set::Entry> parse_set_entry(TokenStream tokens) {
+		auto iter = NonBracketed(tokens);
+
+		auto name_opt = iter.next();
+		if(!name_opt) {
+			return {};
+		}
+
+		const Spanned<Token>& name_tok = *name_opt;
+		std::string name;
+
+		if(name_tok->as_identifier()) {
+			name = *name_tok->as_identifier();
+		} else if(name_tok->as_string()) {
+			name = *name_tok->as_string();
+		} else {
+			throw error::expected_attribute_name(name_tok.as_cref());
+		}
+
+		auto equal_opt = iter.next();
+
+		if(!equal_opt) {
+			throw error::expected_token(Token("="), name_tok.span.span_after());
+		}
+
+		if(*equal_opt->get() != Token("=")) {
+			throw error::expected_token(Token("="), equal_opt->get().as_cref());
+		}
+
+		TokenStream expr_tokens = tokens.subspan(2);
+		std::optional<Spanned<Expression>> expr = try_parse_expression(expr_tokens);
+
+		if(!expr) {
+			throw error::expected_expression(equal_opt->get().span.span_after());
+		}
+
+		return Set::Entry(
+			Spanned(std::move(name), name_tok.span),
+			std::move(*expr)
+		);
+	}
+
+	static std::vector<Set::Entry> parse_set_entries(TokenStream tokens) {
+		std::vector<Set::Entry> entries;
+
+		size_t entry_start = 0;
+
+		NonBracketed iter = tokens;
+		OptionalRef<const Spanned<Token>> tok;
+
+		do {
+			tok = iter.next();
+			const size_t i = tok
+				? &tok->get() - tokens.data()
+				: tokens.size();
+
+			if(!tok || *tok->get() == Token(",") || *tok->get() == Token(";")) {
+				size_t len = i - entry_start;
+				const TokenStream expr_tokens = tokens.subspan(entry_start, len);
+
+				std::optional<Set::Entry> entry = parse_set_entry(expr_tokens);
+
+				if(!tok && !entry) {
+					break; // Ignore trailing comma
+				} else if(tok && !entry) {
+					throw parser::error::expected_attribute_name(tok->get().as_cref());
+				}
+
+				entries.push_back(std::move(*entry));
+				entry_start = i + 1;
+			}
+
+		} while(tok);
+
+		return entries;
 	}
 }

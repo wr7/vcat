@@ -6,6 +6,7 @@
 #include "src/util.hh"
 
 namespace vcat::parser {
+	// Iterates over the tokens in a stream that are not enclosed in brackets.
 	class NonBracketed {
 		public:
 			constexpr NonBracketed(TokenStream tokens)
