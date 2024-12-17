@@ -4,7 +4,6 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -122,40 +121,19 @@ namespace vcat {
 		return StringLiteral(lhs) + rhs;
 	}
 
-	template <std::bidirectional_iterator T>
+	template <typename T>
 	class Reversed {
 		private:
 			T m_inner;
 		public:
-			using difference_type = std::iter_difference_t<T>;
-			using value_type      = std::iter_value_t<T>;
-			using reference       = std::iter_reference_t<T>;
+			inline Reversed(T iter)
+				: m_inner(iter) {}
 
-			constexpr Reversed<T>() : m_inner() {}
-			constexpr Reversed<T>(T inner) : m_inner(inner) {}
-
-			inline decltype(*m_inner) operator*() const {
-				return *m_inner;
+			inline decltype(m_inner.next()) next_back() {
+				return m_inner.next();
 			}
-
-			inline bool operator==(const Reversed<T> rhs) const {
-				return m_inner == rhs.m_inner;
-			}
-
-			inline Reversed<T>& operator++() {
-				--m_inner;
-				return *this;
-			}
-			inline Reversed<T>& operator--() {
-				++m_inner;
-				return *this;
-			}
-
-			inline Reversed<T> operator++(int) {
-				return m_inner--;
-			}
-			inline Reversed<T> operator--(int) {
-				return m_inner++;
+			inline decltype(m_inner.next_back()) next() {
+				return m_inner.next_back();
 			}
 	};
 }

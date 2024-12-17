@@ -111,30 +111,18 @@ namespace vcat::parser {
 	}
 
 	std::optional<Expression> try_parse_parenthized_expression(TokenStream tokens) {
-		auto iter = std::ranges::subrange(
-			NonBracketed(tokens).begin(),
-			NonBracketed(tokens).end()
-		);
+		auto iter = NonBracketed(tokens);
 
-		if(iter.empty()) {
-			return std::optional<Expression>();
+		auto opening_paren = iter.next();
+		if(!opening_paren || *opening_paren->get() != Token("(")) {
+			return {};
 		}
 
-		if((*iter.begin())->val != Token("(")) {
-			return std::optional<Expression>();
-		}
+		auto closing_paren = iter.next();
+		assert(closing_paren && *closing_paren->get() == Token(")"));
 
-		iter.advance(1);
-
-		assert(!iter.empty());
-
-		const Spanned<Token> *closing_paren = *iter.begin();
-		const size_t          closing_idx   = closing_paren - tokens.data();
-
-		assert(closing_paren->val == Token(")"));
-
-		if(closing_idx + 1 != tokens.size()) {
-			return std::optional<Expression>();
+		if(iter.next()) {
+			return {};
 		}
 
 		TokenStream inside = tokens.subspan(1, tokens.size() - 2);
@@ -150,26 +138,18 @@ namespace vcat::parser {
 	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens);
 
 	std::optional<Expression> try_parse_list(TokenStream tokens) {
-		auto iter = std::ranges::subrange(
-			NonBracketed(tokens).begin(),
-			NonBracketed(tokens).end()
-		);
+		auto iter = NonBracketed(tokens);
 
-		if(iter.empty()) {
-			return std::optional<Expression>();
+		auto opening_bracket = iter.next();
+		if(!opening_bracket || *opening_bracket->get() != Token("[")) {
+			return {};
 		}
 
-		if((*iter.begin())->val != Token("[")) {
-			return std::optional<Expression>();
-		}
+		auto closing_bracket = iter.next();
+		assert(closing_bracket && *closing_bracket->get() == Token("]"));
 
-		iter.advance(1);
-		assert(!iter.empty());
-		assert((*iter.begin())->val == Token("]"));
-
-		const Spanned<Token> *closing_bracket = *iter.begin();
-		if(closing_bracket + 1 != tokens.data() + tokens.size()) {
-			return std::optional<Expression>();
+		if(iter.next()) {
+			return {};
 		}
 
 		const TokenStream inside = tokens.subspan(1, tokens.size() - 2);
@@ -180,30 +160,17 @@ namespace vcat::parser {
 	}
 
 	std::optional<Expression> try_parse_function_call(TokenStream tokens) {
-		auto iter = std::ranges::subrange(
-			NonBracketed(tokens).rbegin(),
-			NonBracketed(tokens).rend()
-		);
+		auto iter = Reversed(NonBracketed(tokens));
 
-		if(iter.empty()) {
-			return std::optional<Expression>();
+		auto closing_paren = iter.next();
+		if(!closing_paren || *closing_paren->get() != Token(")")) {
+			return {};
 		}
+		const size_t closing_idx = &closing_paren->get() - tokens.data();
 
-		const Spanned<Token> *closing_paren = *iter.begin();
-		const size_t          closing_idx   = closing_paren - tokens.data();
-
-		if(closing_paren->val != Token(")")) {
-			return std::optional<Expression>();
-		}
-
-		iter = iter.next();
-
-		assert(!iter.empty());
-
-		const Spanned<Token> *opening_paren = *iter.begin();
-		const size_t          opening_idx   = opening_paren - tokens.data();
-
-		assert(opening_paren->val == Token("("));
+		auto opening_paren = iter.next();
+		assert(opening_paren && *opening_paren->get() == Token("("));
+		const size_t opening_idx = &opening_paren->get() - tokens.data();
 
 		TokenStream function_tokens = tokens.subspan(0, opening_idx);
 		std::optional<Spanned<Expression>> function = try_parse_expression(function_tokens);
@@ -245,9 +212,9 @@ namespace vcat::parser {
 
 		size_t expr_start = 0;
 
-		for(const Spanned<Token> *tok_ptr : NonBracketed(tokens)) {
-			const Spanned<Token>& tok = *tok_ptr;
-			const size_t i = tok_ptr - tokens.data();
+		for(NonBracketed iter = tokens; auto tok_ref = iter.next();) {
+			const Spanned<Token>& tok = *tok_ref;
+			const size_t i = &tok_ref->get() - tokens.data();
 
 			if(tok.val == Token(",")) {
 				const size_t len = i - expr_start;
