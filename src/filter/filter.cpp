@@ -3,8 +3,11 @@
 #include "src/error.hh"
 #include "src/filter/error.hh"
 #include "src/util.hh"
+#include "src/filter/util.hh"
+
 #include <algorithm>
 #include <cassert>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -22,6 +25,9 @@
 #include <vector>
 
 extern "C" {
+	#include <libavcodec/avcodec.h>
+	#include <libavcodec/codec.h>
+	#include <libavcodec/codec_par.h>
 	#include <libavcodec/packet.h>
 	#include <libavformat/avformat.h>
 	#include <libavformat/avio.h>
@@ -104,20 +110,32 @@ namespace vcat::filter {
 	class VideoFileSource : public PacketSource {
 		private:
 			AVFormatContext *m_ctx;
-			Span             m_span;
-			int64_t          m_dts_start;
-			TsInfo           m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
-			TsInfo           m_pts_end_info; //< The pts and duration of the last video packet (pts-wise) in each stream
-			int64_t          m_video_idx;
+			Span                     m_span;
+			int64_t                  m_dts_start;
+			TsInfo                   m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
+			TsInfo                   m_pts_end_info; //< The pts and duration of the last video packet (pts-wise) in each stream
+			int64_t                  m_video_idx;
+
+			bool                     m_requires_transcoding;
+			AVCodecContext          *m_decoder;
+			AVCodecContext          *m_encoder;
+			AVFrame                 *m_frame_buf;
+
+			const AVCodecParameters *m_video_params;
 
 			AVIOContext     *m_io_ctx;
 		public:
 			VideoFileSource() = delete;
 
-			VideoFileSource(const std::string& path, Span span)
+			VideoFileSource(const std::string& path, Span span, const AVCodecParameters *output_params)
 				: m_ctx(avformat_alloc_context())
 				, m_span(span)
-				, m_io_ctx(nullptr) {
+				, m_decoder(nullptr)
+				, m_encoder(nullptr)
+				, m_frame_buf(nullptr)
+				, m_video_params(output_params)
+				, m_io_ctx(nullptr)
+			{
 
 				recreate_io_ctx(path);
 
@@ -135,26 +153,53 @@ namespace vcat::filter {
 				error::handle_ffmpeg_error(m_span,
 					avformat_find_stream_info(m_ctx, NULL)
 				);
+
+				AVCodecParameters *input_params = m_ctx->streams[m_video_idx]->codecpar;
+				if(!m_video_params) {
+					m_video_params = input_params;
+				}
+
+				m_requires_transcoding = m_video_params && !util::codecs_are_compatible(m_video_params, input_params);
+				if(m_requires_transcoding) {
+					const AVRational native_timebase = m_ctx->streams[m_video_idx]->time_base;
+
+					m_decoder = util::create_decoder(m_span, input_params, native_timebase);
+					m_encoder = util::create_encoder(m_span, m_video_params, native_timebase);
+				}
 			}
 
 			bool next_pkt(AVPacket **p_packet) {
-				start:
-				int ret_code = av_read_frame(m_ctx, *p_packet);
-
-				if(ret_code == AVERROR_EOF) {
-					return false;
-				}
-
-				error::handle_ffmpeg_error(m_span, ret_code);
-
 				AVPacket *const packet = *p_packet;
 
-				if(packet->stream_index == m_video_idx) {
-					packet->stream_index = 0;
+				if(m_requires_transcoding) {
+					for(;;) {
+						int res = util::transcode_receive_packet(m_decoder, m_encoder, &m_frame_buf, packet);
+						if(res == AVERROR_EOF) {
+							return false;
+						} else if(res != AVERROR(EAGAIN)) {
+							error::handle_ffmpeg_error(m_span, res);
+							break;
+						}
+
+						if(!util::read_packet_from_stream(m_span, m_ctx, m_video_idx, packet)) {
+							error::handle_ffmpeg_error(m_span,
+								avcodec_send_packet(m_decoder, nullptr)
+							);
+							continue;
+						}
+
+						error::handle_ffmpeg_error(m_span,
+							avcodec_send_packet(m_decoder, packet)
+						);
+						av_packet_unref(packet);
+					}
 				} else {
-					av_packet_unref(packet);
-					goto start;
+					if(!util::read_packet_from_stream(m_span, m_ctx, m_video_idx, packet)) {
+						return false;
+					}
 				}
+
+				packet->stream_index = 0;
 
 				const AVRational old_timebase = m_ctx->streams[packet->stream_index]->time_base;
 
@@ -163,8 +208,8 @@ namespace vcat::filter {
 				return true;
 			}
 
-			AVCodecParameters *video_codec() {
-				return m_ctx->streams[m_video_idx]->codecpar;
+			const AVCodecParameters *video_codec() {
+				return m_video_params;
 			}
 
 			std::span<AVStream *> av_streams() {
@@ -187,7 +232,6 @@ namespace vcat::filter {
 				if(m_ctx != nullptr) {
 					avformat_close_input(&m_ctx);
 				}
-
 				if(m_io_ctx) {
 					av_free(m_io_ctx->buffer);
 					m_io_ctx->buffer = nullptr;
@@ -196,15 +240,33 @@ namespace vcat::filter {
 
 					avio_context_free(&m_io_ctx);
 				}
+				if(m_decoder) {
+					avcodec_free_context(&m_decoder);
+				}
+				if(m_encoder) {
+					avcodec_free_context(&m_encoder);
+				}
+				if(m_frame_buf) {
+					av_frame_free(&m_frame_buf);
+				}
 			}
 
 			VideoFileSource(VideoFileSource&& old)
 				: m_ctx(old.m_ctx)
 				, m_span(old.m_span)
+				, m_requires_transcoding(old.m_requires_transcoding)
+				, m_decoder(old.m_decoder)
+				, m_encoder(old.m_encoder)
+				, m_frame_buf(old.m_frame_buf)
+				, m_video_params(old.m_video_params)
 				, m_io_ctx(old.m_io_ctx)
 			{
 				old.m_ctx = nullptr;
 				old.m_io_ctx = nullptr;
+				old.m_decoder = nullptr;
+				old.m_encoder = nullptr;
+				old.m_frame_buf = nullptr;
+				old.m_requires_transcoding = false;
 			}
 
 		private:
@@ -342,19 +404,22 @@ namespace vcat::filter {
 		return "Concat";
 	}
 
-	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span s) const {
-		return std::make_unique<VideoFileSource>(m_path, s);
+	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span s, const AVCodecParameters *params) const {
+		return std::make_unique<VideoFileSource>(m_path, s, params);
 	}
 
 	class ConcatSource : public PacketSource {
 		public:
 			ConcatSource() = delete;
 
-			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span)
+			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span, const AVCodecParameters *params)
 				: m_idx(0)
 				, m_span(span) {
 				for(const auto& video : videos) {
-					m_videos.push_back(video->get_pkts(video.span));
+					m_videos.push_back(video->get_pkts(video.span, params));
+					if(!params) {
+						params = m_videos.back()->video_codec();
+					}
 				}
 
 				calculate_ts_offsets();
@@ -381,7 +446,7 @@ namespace vcat::filter {
 				return true;
 			}
 
-			AVCodecParameters *video_codec() {
+			const AVCodecParameters *video_codec() {
 				return m_videos[0]->video_codec();
 			}
 
@@ -465,7 +530,7 @@ namespace vcat::filter {
 			Span                                       m_span;
 	};
 
-	std::unique_ptr<PacketSource> Concat::get_pkts(Span s) const {
-		return std::make_unique<ConcatSource>(m_videos, s);
+	std::unique_ptr<PacketSource> Concat::get_pkts(Span s, const AVCodecParameters *params) const {
+		return std::make_unique<ConcatSource>(m_videos, s, params);
 	}
 }

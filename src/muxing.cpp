@@ -22,8 +22,8 @@ namespace vcat::muxing {
 			throw error::invalid_output(span);
 		}
 
-		std::unique_ptr<filter::PacketSource> source = filter->get_pkts(span);
-		AVCodecParameters *ivcodec = source->video_codec();
+		std::unique_ptr<filter::PacketSource> source = filter->get_pkts(span, nullptr);
+		const AVCodecParameters *ivcodec = source->video_codec();
 
 		AVFormatContext *output = nullptr;
 		error::handle_ffmpeg_error(

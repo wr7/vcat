@@ -24,7 +24,7 @@ namespace vcat::filter {
 			//
 			// A double pointer is used to allow for more efficient 'look-ahead' buffers for filters
 			virtual bool next_pkt(AVPacket **packet) = 0;
-			virtual AVCodecParameters *video_codec() = 0;
+			virtual const AVCodecParameters *video_codec() = 0;
 			virtual TsInfo  dts_end_info() const = 0;
 			virtual int64_t dts_start() const = 0;
 			virtual TsInfo  pts_end_info() const = 0;
@@ -33,7 +33,7 @@ namespace vcat::filter {
 
 	class VFilter : public EObject {
 		public:
-			virtual std::unique_ptr<PacketSource> get_pkts(Span) const = 0;
+			virtual std::unique_ptr<PacketSource> get_pkts(Span, const AVCodecParameters *) const = 0;
 	};
 	static_assert(std::is_abstract<VFilter>());
 
@@ -44,7 +44,7 @@ namespace vcat::filter {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			std::unique_ptr<PacketSource> get_pkts(Span) const;
+			std::unique_ptr<PacketSource> get_pkts(Span, const AVCodecParameters *) const;
 
 			// NOTE: throws `std::string` upon IO failure
 			VideoFile(std::string&& path);
@@ -62,7 +62,7 @@ namespace vcat::filter {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			std::unique_ptr<PacketSource> get_pkts(Span) const;
+			std::unique_ptr<PacketSource> get_pkts(Span, const AVCodecParameters *params) const;
 
 			constexpr Concat(std::vector<Spanned<const VFilter&>> videos, Span s) : m_videos(std::move(videos)) {
 				if(m_videos.empty()) {

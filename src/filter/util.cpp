@@ -1,13 +1,23 @@
+#include "libavutil/rational.h"
+#include "src/constants.hh"
+#include "src/error.hh"
+#include "src/filter/error.hh"
+#include <cerrno>
 #include <cstdlib>
 #include <iostream>
 
 extern "C" {
-	#include "libavcodec/codec_par.h"
-	#include "libavutil/avutil.h"
+	#include <libavcodec/avcodec.h>
+	#include <libavcodec/codec_par.h>
+	#include <libavcodec/packet.h>
+	#include <libavformat/avformat.h>
+	#include <libavutil/avutil.h>
+	#include <libavutil/error.h>
+	#include <libavutil/frame.h>
 }
 
 namespace vcat::filter::util {
-	bool codecs_are_compatible(AVCodecParameters *params1, AVCodecParameters *params2) {
+	bool codecs_are_compatible(const AVCodecParameters *params1, const AVCodecParameters *params2) {
 		if(
 			params1->codec_type     != params2->codec_type     ||
 			params1->codec_id       != params2->codec_id       ||
@@ -63,5 +73,96 @@ namespace vcat::filter::util {
 		}
 
 		return true;
+	}
+
+	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params, AVRational time_base) {
+		const AVCodec *av_decoder = avcodec_find_decoder(params->codec_id);
+		if(!av_decoder) {
+			throw error::ffmpeg_no_codec(span, params->codec_id);
+		}
+
+		AVCodecContext *decode_ctx = avcodec_alloc_context3(av_decoder);
+		error::handle_ffmpeg_error(span, decode_ctx ? 0 : AVERROR_UNKNOWN);
+
+		error::handle_ffmpeg_error(span,
+			avcodec_parameters_to_context(decode_ctx, params)
+		);
+
+		avcodec_open2(decode_ctx, av_decoder, nullptr);
+
+		return decode_ctx;
+	}
+
+	AVCodecContext *create_encoder(Span span, const AVCodecParameters *params, AVRational time_base) {
+		const AVCodec *av_encoder = avcodec_find_encoder(params->codec_id);
+		if(!av_encoder) {
+			throw error::ffmpeg_no_codec(span, params->codec_id);
+		}
+
+		AVCodecContext *encode_ctx = avcodec_alloc_context3(av_encoder);
+		error::handle_ffmpeg_error(span, encode_ctx ? 0 : AVERROR_UNKNOWN);
+
+		error::handle_ffmpeg_error(span,
+			avcodec_parameters_to_context(encode_ctx, params)
+		);
+
+		encode_ctx->time_base = time_base;
+
+		avcodec_open2(encode_ctx, av_encoder, nullptr);
+
+		return encode_ctx;
+	}
+
+	bool read_packet_from_stream(Span span, AVFormatContext *ctx, int stream_idx, AVPacket *packet) {
+		for(;;) {
+			int ret = av_read_frame(ctx, packet);
+			if(ret == AVERROR_EOF) {
+				return false;
+			}
+			error::handle_ffmpeg_error(span, ret);
+
+			if(packet->stream_index == stream_idx) {
+				return true;
+			}
+
+			av_packet_unref(packet);
+		}
+	}
+
+	int transcode_receive_packet(AVCodecContext *decoder, AVCodecContext *encoder, AVFrame **frame_buf, AVPacket *packet) {
+		if(!*frame_buf) {
+			*frame_buf = av_frame_alloc();
+			if(!frame_buf) {
+				return AVERROR_UNKNOWN;
+			}
+		}
+
+		AVFrame *frame = *frame_buf;
+
+		for(;;) {
+			int ret = avcodec_receive_packet(encoder, packet);
+			if(ret == 0) {
+				return 0;
+			} else if(ret != AVERROR(EAGAIN)) {
+				return ret;
+			}
+
+			ret = avcodec_receive_frame(decoder, frame);
+			if(ret == AVERROR_EOF) {
+				avcodec_send_frame(encoder, nullptr);
+				continue;
+			} else if(ret) {
+				return ret;
+			}
+
+			ret = avcodec_send_frame(encoder, frame);
+			assert(ret != AVERROR(EAGAIN));
+			if(ret) {
+				av_frame_unref(frame);
+				return ret;
+			}
+
+			av_frame_unref(frame);
+		}
 	}
 }

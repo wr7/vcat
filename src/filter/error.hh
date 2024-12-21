@@ -6,7 +6,8 @@
 #include <string_view>
 
 extern "C" {
-	#include "libavutil/error.h"
+	#include <libavcodec/avcodec.h>
+	#include <libavutil/error.h>
 }
 
 namespace vcat::filter::error {
@@ -51,6 +52,15 @@ namespace vcat::filter::error {
 	inline Diagnostic no_video(Span s, std::string_view filename) {
 		return Diagnostic(
 			std::format("No video stream found in file `{}`", filename),
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
+	inline Diagnostic ffmpeg_no_codec(Span s, AVCodecID codec_id) {
+		return Diagnostic(
+			std::format("The local build of FFMPEG does not support codec `{}`", avcodec_get_name(codec_id)),
 			{
 				Hint::error("", s)
 			}
