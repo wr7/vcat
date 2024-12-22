@@ -58,6 +58,15 @@ namespace vcat::filter::error {
 		);
 	}
 
+	inline Diagnostic unsupported_output_codec_params(Span s, std::string_view msg) {
+		return Diagnostic(
+			std::format("Unsupported output codec parameters: {}", msg),
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
 	inline Diagnostic ffmpeg_no_codec(Span s, AVCodecID codec_id) {
 		return Diagnostic(
 			std::format("The local build of FFMPEG does not support codec `{}`", avcodec_get_name(codec_id)),

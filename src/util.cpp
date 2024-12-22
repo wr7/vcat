@@ -12,6 +12,17 @@
 #  define be16toh(x) betoh16(x)
 #  define be32toh(x) betoh32(x)
 #  define be64toh(x) betoh64(x)
+#elif defined(__WINDOWS__)
+#  include <winsock2.h>
+#  include <sys/param.h>
+#  define be16toh(x) ntohs(x)
+#  define be32toh(x) ntohl(x)
+#  define be64toh(x) ntohll(x)
+#  define htobe16(x) htons(x)
+#  define htobe32(x) htonl(x)
+#  define htobe64(x) htonll(x)
+#else
+#error "Unsupported platform"
 #endif
 
 extern "C" {
@@ -41,6 +52,22 @@ namespace vcat {
 		}
 
 		return std::move(input);
+	}
+
+	void Hasher::add(uint8_t data) {
+		Hasher::add(&data, sizeof(data));
+	}
+
+	void Hasher::add(uint16_t data) {
+		data = htobe16(data);
+
+		Hasher::add(&data, sizeof(data));
+	}
+
+	void Hasher::add(uint32_t data) {
+		data = htobe32(data);
+
+		Hasher::add(&data, sizeof(data));
 	}
 
 	void Hasher::add(uint64_t data) {

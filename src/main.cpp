@@ -18,6 +18,7 @@ using vcat::parser::Expression;
 // - support user-specified codecs
 // - support multiple streams with concat filter
 // - automatically re-encode when using concat filter
+// - calculate correct timestamp information with transcoded streams
 
 int main() {
 	std::string_view input_test = R"--(

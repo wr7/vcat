@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/error.hh"
+#include "src/util.hh"
 
 extern "C" {
 	#include <libavcodec/avcodec.h>
@@ -12,6 +13,8 @@ namespace vcat::filter::util {
 	bool codecs_are_compatible(const AVCodecParameters *params1, const AVCodecParameters *params2);
 	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params, AVRational time_base);
 	AVCodecContext *create_encoder(Span span, const AVCodecParameters *params, AVRational time_base);
+
+	void hash_avcodec_params(Hasher& hasher, const AVCodecParameters& p, Span s);
 
 	// Convenience function for receiving packets through a decoder + encoder chain.
 	//

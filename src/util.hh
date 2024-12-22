@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -28,7 +29,15 @@ namespace vcat {
 
 			void add(const void*data, size_t nbytes);
 			void add(std::string_view string);
+			void add(uint8_t data);
+			void add(uint16_t data);
+			void add(uint32_t data);
 			void add(uint64_t data);
+
+			inline void add(int8_t data)  {add(std::bit_cast<uint8_t >(data));}
+			inline void add(int16_t data) {add(std::bit_cast<uint16_t>(data));}
+			inline void add(int32_t data) {add(std::bit_cast<uint32_t>(data));}
+			inline void add(int64_t data) {add(std::bit_cast<uint64_t>(data));}
 
 			inline std::array<uint8_t, 32> into_bin() {
 				std::array<uint8_t, 32> retval = {0};

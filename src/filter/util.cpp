@@ -1,5 +1,4 @@
-#include "libavutil/rational.h"
-#include "src/constants.hh"
+#include "src/util.hh"
 #include "src/error.hh"
 #include "src/filter/error.hh"
 #include <cerrno>
@@ -10,10 +9,12 @@ extern "C" {
 	#include <libavcodec/avcodec.h>
 	#include <libavcodec/codec_par.h>
 	#include <libavcodec/packet.h>
+	#include <libavcodec/codec_id.h>
 	#include <libavformat/avformat.h>
 	#include <libavutil/avutil.h>
 	#include <libavutil/error.h>
 	#include <libavutil/frame.h>
+	#include <libavutil/rational.h>
 }
 
 namespace vcat::filter::util {
@@ -75,7 +76,62 @@ namespace vcat::filter::util {
 		return true;
 	}
 
-	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params, AVRational time_base) {
+	void hash_avcodec_params(Hasher& hasher, const AVCodecParameters& p, Span s) {
+		hasher.add("_avcodec-params_");
+		const size_t start = hasher.pos();
+
+		if(p.codec_type == AVMEDIA_TYPE_AUDIO) {
+			hasher.add('A');
+		} else if(p.codec_type == AVMEDIA_TYPE_VIDEO) {
+			hasher.add('V');
+		} else {
+			std::cerr << "cannot hash non-audio/video codec";
+			std::abort();
+		}
+
+		const char *codec_name = avcodec_get_name(p.codec_id);
+		size_t      codec_name_len = strlen(codec_name);
+
+		hasher.add(codec_name);
+		hasher.add((uint64_t) codec_name_len);
+		hasher.add(p.codec_tag);
+		hasher.add(p.format);
+		hasher.add(p.profile);
+		hasher.add(p.level);
+		hasher.add(p.extradata, p.extradata_size);
+		hasher.add(p.extradata_size);
+
+		if(p.codec_type == AVMEDIA_TYPE_VIDEO) {
+			hasher.add(p.width);
+			hasher.add(p.height);
+			hasher.add(p.field_order);
+			hasher.add(p.color_range);
+			hasher.add(p.color_primaries);
+			hasher.add(p.color_trc);
+			hasher.add(p.color_space);
+			hasher.add(p.chroma_location);
+		} else {
+			hasher.add(p.sample_rate);
+			hasher.add(p.block_align);
+			hasher.add(p.frame_size);
+			switch(p.ch_layout.order) {
+				case AV_CHANNEL_ORDER_NATIVE:
+				case AV_CHANNEL_ORDER_AMBISONIC:
+					hasher.add(p.ch_layout.u.mask); break;
+				case AV_CHANNEL_ORDER_CUSTOM:
+					throw error::unsupported_output_codec_params(s, "custom channel order");
+				case FF_CHANNEL_ORDER_NB:
+				case AV_CHANNEL_ORDER_UNSPEC:
+					break;
+			}
+			hasher.add(p.ch_layout.order);
+			hasher.add(p.ch_layout.nb_channels);
+		}
+
+		hasher.add((uint64_t) (hasher.pos() - start));
+	}
+
+	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params, AVRational) {
 		const AVCodec *av_decoder = avcodec_find_decoder(params->codec_id);
 		if(!av_decoder) {
 			throw error::ffmpeg_no_codec(span, params->codec_id);
