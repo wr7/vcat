@@ -7,6 +7,7 @@ extern "C" {
 	#include <libavcodec/avcodec.h>
 	#include "libavcodec/codec_par.h"
 	#include <libavformat/avformat.h>
+	#include <libavformat/avio.h>
 }
 
 namespace vcat::filter::util {
@@ -25,4 +26,28 @@ namespace vcat::filter::util {
 
 	// Gets the next packet in a stream. Returns `false` if the stream is empty.
 	bool read_packet_from_stream(Span span, AVFormatContext *ctx, int stream_idx, AVPacket *packet);
+
+	// Represents an `AVIOContext` based on `FILE *`.
+	class VCatAVFile {
+		public:
+			constexpr AVIOContext *get() const {return m_ctx;}
+
+			// Recreates the underlying `AVIOContext`.
+			//
+			// NOTE: this will invalidate all `VCatAVFile::get` pointers obtained before this call.
+			void reset();
+
+			// NOTE: this will take ownership of the file. When the destructor of this class is called, the
+			// file will be closed.
+			VCatAVFile(FILE *);
+
+			constexpr VCatAVFile()
+			 : m_ctx(nullptr) {}
+
+			VCatAVFile(VCatAVFile&) = delete;
+			VCatAVFile(VCatAVFile&&);
+			~VCatAVFile();
+		private:
+			AVIOContext *m_ctx;
+	};
 }

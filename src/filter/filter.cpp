@@ -84,29 +84,6 @@ namespace vcat::filter {
 		return "VideoFile";
 	}
 
-	static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
-		FILE *avio_ctx = (FILE *) opaque;
-
-		errno = 0;
-		size_t a = fread(buf, 1, buf_size, avio_ctx);
-		if (errno != 0) {
-			return AVERROR(errno);
-		}
-
-		return a;
-	}
-
-	static int64_t seek_func(void *opaque, int64_t offset, int whence)
-	{
-		FILE *file = (FILE *) opaque;
-
-		if (fseek(file, offset, whence) != 0) {
-			return AVERROR(errno);
-		}
-
-		return ftell(file);
-	}
-
 	class VideoFileSource : public PacketSource {
 		private:
 			AVFormatContext *m_ctx;
@@ -123,7 +100,7 @@ namespace vcat::filter {
 
 			const AVCodecParameters *m_video_params;
 
-			AVIOContext     *m_io_ctx;
+			util::VCatAVFile         m_file;
 		public:
 			VideoFileSource() = delete;
 
@@ -134,17 +111,20 @@ namespace vcat::filter {
 				, m_encoder(nullptr)
 				, m_frame_buf(nullptr)
 				, m_video_params(output_params)
-				, m_io_ctx(nullptr)
 			{
+				errno = 0;
+				FILE *fp = fopen(path.c_str(), "rb");  
 
-				recreate_io_ctx(path);
+				if(errno != 0) {
+					throw error::failed_file_open(m_span, path);
+				}
+
+				new(&m_file) util::VCatAVFile(fp);
 
 				calculate_info(path);
 
-				recreate_io_ctx(path);
-
 				m_ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
-				m_ctx->pb = m_io_ctx;
+				m_ctx->pb = m_file.get();
 
 				error::handle_ffmpeg_error(m_span,
 					avformat_open_input(&m_ctx, path.c_str(), NULL, NULL)
@@ -232,14 +212,6 @@ namespace vcat::filter {
 				if(m_ctx != nullptr) {
 					avformat_close_input(&m_ctx);
 				}
-				if(m_io_ctx) {
-					av_free(m_io_ctx->buffer);
-					m_io_ctx->buffer = nullptr;
-
-					fclose((FILE *) m_io_ctx->opaque);
-
-					avio_context_free(&m_io_ctx);
-				}
 				if(m_decoder) {
 					avcodec_free_context(&m_decoder);
 				}
@@ -259,10 +231,8 @@ namespace vcat::filter {
 				, m_encoder(old.m_encoder)
 				, m_frame_buf(old.m_frame_buf)
 				, m_video_params(old.m_video_params)
-				, m_io_ctx(old.m_io_ctx)
 			{
 				old.m_ctx = nullptr;
-				old.m_io_ctx = nullptr;
 				old.m_decoder = nullptr;
 				old.m_encoder = nullptr;
 				old.m_frame_buf = nullptr;
@@ -272,11 +242,10 @@ namespace vcat::filter {
 		private:
 			// Walks through the file to calculate `m_dts_start`, `m_dts_end_info`, `m_pts_end_info`, and `video_idx`
 			//
-			// NOTE: this should be called before the main AVFormatContext is created,
-			// and this will consume the AVIO context
+			// NOTE: this should be called before the main AVFormatContext is created.
 			void calculate_info(const std::string& path) {
 				AVFormatContext *ctx = avformat_alloc_context();
-				ctx->pb = m_io_ctx;
+				ctx->pb = m_file.get();
 				ctx->flags |= AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
 
 				error::handle_ffmpeg_error(m_span,
@@ -336,35 +305,9 @@ namespace vcat::filter {
 
 				av_packet_free(&pkt);
 				avformat_close_input(&ctx);
+
+				m_file.reset();
 			}
-
-			// Creates or re-creates the io context
-			void recreate_io_ctx(const std::string& path) {
-				if(!m_io_ctx) {
-					errno = 0;
-					FILE *fp = fopen(path.c_str(), "rb");  
-
-					if(errno != 0) {
-						throw error::failed_file_open(m_span, path);
-					}
-
-					uint8_t *buffer = (decltype(buffer)) av_malloc(4096);
-					m_io_ctx = avio_alloc_context(buffer, 4096, 0, fp, read_packet, NULL, seek_func);
-				} else {
-					int res = fseek((FILE *) m_io_ctx->opaque, 0, SEEK_SET);
-					if(res != 0) {
-						throw error::failed_file_open(m_span, path);
-					}
-
-					uint8_t *buffer = m_io_ctx->buffer;
-					int buffer_size = m_io_ctx->buffer_size;
-					FILE *fp = (FILE *) m_io_ctx->opaque;
-
-					avio_context_free(&m_io_ctx);
-					m_io_ctx = avio_alloc_context(buffer, buffer_size, 0, fp, read_packet, NULL, seek_func);
-				}
-			}
-
 	};
 
 	void Concat::hash(Hasher& hasher) const {

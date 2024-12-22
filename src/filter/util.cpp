@@ -1,7 +1,9 @@
 #include "src/util.hh"
 #include "src/error.hh"
 #include "src/filter/error.hh"
+#include "src/filter/util.hh"
 #include <cerrno>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 
@@ -11,6 +13,7 @@ extern "C" {
 	#include <libavcodec/packet.h>
 	#include <libavcodec/codec_id.h>
 	#include <libavformat/avformat.h>
+	#include <libavformat/avio.h>
 	#include <libavutil/avutil.h>
 	#include <libavutil/error.h>
 	#include <libavutil/frame.h>
@@ -219,6 +222,63 @@ namespace vcat::filter::util {
 			}
 
 			av_frame_unref(frame);
+		}
+	}
+
+	static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
+		FILE *avio_ctx = (FILE *) opaque;
+
+		errno = 0;
+		size_t a = fread(buf, 1, buf_size, avio_ctx);
+		if (errno != 0) {
+			return AVERROR(errno);
+		}
+
+		return a;
+	}
+
+	static int64_t seek_func(void *opaque, int64_t offset, int whence)
+	{
+		FILE *file = (FILE *) opaque;
+
+		if (fseek(file, offset, whence) != 0) {
+			return AVERROR(errno);
+		}
+
+		return ftell(file);
+	}
+
+	VCatAVFile::VCatAVFile(FILE *file) {
+		uint8_t *buffer = (decltype(buffer)) av_malloc(4096);
+		m_ctx = avio_alloc_context(buffer, 4096, 0, file, read_packet, nullptr, seek_func);
+	}
+
+	void VCatAVFile::reset() {
+		uint8_t *buffer = m_ctx->buffer;
+		int buffer_size = m_ctx->buffer_size;
+
+		m_ctx->buffer = nullptr;
+		m_ctx->buffer_size = 0;
+
+		FILE *file = (FILE *) m_ctx->opaque;
+
+		fseek(file, 0, SEEK_SET);
+
+		avio_context_free(&m_ctx);
+		m_ctx = avio_alloc_context(buffer, buffer_size, 0, file, read_packet, nullptr, seek_func);
+	}
+
+	VCatAVFile::VCatAVFile(VCatAVFile&& o)
+		: m_ctx(o.m_ctx)
+	{
+		o.m_ctx = nullptr;
+	}
+
+	VCatAVFile::~VCatAVFile() {
+		if(m_ctx) {
+			fclose((FILE *) m_ctx->opaque);
+			av_free(m_ctx->buffer);
+			avio_context_free(&m_ctx);
 		}
 	}
 }
