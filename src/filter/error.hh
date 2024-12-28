@@ -40,6 +40,24 @@ namespace vcat::filter::error {
 		);
 	}
 
+	inline Diagnostic no_dts(Span s) {
+		return Diagnostic(
+			"No dts value found for frame",
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
+	inline Diagnostic failed_cache_directory(Span s, std::string_view msg) {
+		return Diagnostic(
+			std::format("Failed to create cache directory: {}", msg),
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
 	inline Diagnostic failed_file_open(Span s, std::string_view filename) {
 		return Diagnostic(
 			std::format("Failed to open file `{}`: {}", filename, strerror(errno)),

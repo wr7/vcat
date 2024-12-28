@@ -23,8 +23,8 @@ using vcat::parser::Expression;
 int main() {
 	std::string_view input_test = R"--(
     concat(
-        vopen("prism.mp4"),
         vopen("prism2.mp4"),
+        vopen("prism.mp4"),
     )
 	)--";
 	vcat::Lexer lexer = vcat::Lexer(input_test);
@@ -50,7 +50,7 @@ int main() {
 
 		object.hash(hasher);
 
-		std::cout << "hash: " << hasher.as_string() << "\n";
+		std::cout << "hash: " << hasher.into_string() << "\n";
 
 		vcat::muxing::write_output(Spanned<const vcat::EObject&>(object, expression->span));
 

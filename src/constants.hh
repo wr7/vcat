@@ -5,5 +5,5 @@ extern "C" {
 }
 
 namespace vcat::constants {
-	extern inline const AVRational TIMEBASE = {1, 90'000};
+	extern inline constexpr AVRational TIMEBASE = {1, 90'000};
 }

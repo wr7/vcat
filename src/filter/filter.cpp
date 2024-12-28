@@ -13,8 +13,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <format>
 #include <iomanip>
+#include <ios>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -37,6 +39,7 @@ extern "C" {
 	#include <libavutil/mathematics.h>
 	#include <libavutil/rational.h>
 	#include <libavutil/error.h>
+	#include <libavutil/frame.h>
 }
 
 namespace vcat::filter {
@@ -92,25 +95,22 @@ namespace vcat::filter {
 			TsInfo                   m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
 			TsInfo                   m_pts_end_info; //< The pts and duration of the last video packet (pts-wise) in each stream
 			int64_t                  m_video_idx;
+			size_t                   m_pkt_no; //< The index of the current packet (starting at 0)
 
-			bool                     m_requires_transcoding;
-			AVCodecContext          *m_decoder;
-			AVCodecContext          *m_encoder;
-			AVFrame                 *m_frame_buf;
-
-			const AVCodecParameters *m_video_params;
+			// Some formats (ie mkv) do not support negative DTS and instead use `AV_NOPTS_VALUE`. This value
+			// is used to reconstruct the negative DTS
+			uint64_t                 m_dts_jump;
 
 			util::VCatAVFile         m_file;
 		public:
 			VideoFileSource() = delete;
 
-			VideoFileSource(const std::string& path, Span span, const AVCodecParameters *output_params)
+			VideoFileSource(const std::string& path, Span span)
 				: m_ctx(avformat_alloc_context())
 				, m_span(span)
-				, m_decoder(nullptr)
-				, m_encoder(nullptr)
-				, m_frame_buf(nullptr)
-				, m_video_params(output_params)
+				, m_pkt_no(0)
+				, m_dts_jump(0)
+				, m_file()
 			{
 				errno = 0;
 				FILE *fp = fopen(path.c_str(), "rb");  
@@ -133,51 +133,17 @@ namespace vcat::filter {
 				error::handle_ffmpeg_error(m_span,
 					avformat_find_stream_info(m_ctx, NULL)
 				);
-
-				AVCodecParameters *input_params = m_ctx->streams[m_video_idx]->codecpar;
-				if(!m_video_params) {
-					m_video_params = input_params;
-				}
-
-				m_requires_transcoding = m_video_params && !util::codecs_are_compatible(m_video_params, input_params);
-				if(m_requires_transcoding) {
-					const AVRational native_timebase = m_ctx->streams[m_video_idx]->time_base;
-
-					m_decoder = util::create_decoder(m_span, input_params, native_timebase);
-					m_encoder = util::create_encoder(m_span, m_video_params, native_timebase);
-				}
 			}
 
 			bool next_pkt(AVPacket **p_packet) {
 				AVPacket *const packet = *p_packet;
 
-				if(m_requires_transcoding) {
-					for(;;) {
-						int res = util::transcode_receive_packet(m_decoder, m_encoder, &m_frame_buf, packet);
-						if(res == AVERROR_EOF) {
-							return false;
-						} else if(res != AVERROR(EAGAIN)) {
-							error::handle_ffmpeg_error(m_span, res);
-							break;
-						}
-
-						if(!util::read_packet_from_stream(m_span, m_ctx, m_video_idx, packet)) {
-							error::handle_ffmpeg_error(m_span,
-								avcodec_send_packet(m_decoder, nullptr)
-							);
-							continue;
-						}
-
-						error::handle_ffmpeg_error(m_span,
-							avcodec_send_packet(m_decoder, packet)
-						);
-						av_packet_unref(packet);
-					}
-				} else {
-					if(!util::read_packet_from_stream(m_span, m_ctx, m_video_idx, packet)) {
-						return false;
-					}
+				int res = av_read_frame(m_ctx, *p_packet);
+				if(res == AVERROR_EOF) {
+					return false;
 				}
+
+				error::handle_ffmpeg_error(m_span, res);
 
 				packet->stream_index = 0;
 
@@ -185,11 +151,16 @@ namespace vcat::filter {
 
 				av_packet_rescale_ts(packet, old_timebase, constants::TIMEBASE);
 
+				if(packet->dts == AV_NOPTS_VALUE) {
+					packet->dts = m_dts_start + m_pkt_no * m_dts_jump;
+				}
+
+				m_pkt_no += 1;
 				return true;
 			}
 
 			const AVCodecParameters *video_codec() {
-				return m_video_params;
+				return m_ctx->streams[m_video_idx]->codecpar;
 			}
 
 			std::span<AVStream *> av_streams() {
@@ -212,31 +183,15 @@ namespace vcat::filter {
 				if(m_ctx != nullptr) {
 					avformat_close_input(&m_ctx);
 				}
-				if(m_decoder) {
-					avcodec_free_context(&m_decoder);
-				}
-				if(m_encoder) {
-					avcodec_free_context(&m_encoder);
-				}
-				if(m_frame_buf) {
-					av_frame_free(&m_frame_buf);
-				}
 			}
 
 			VideoFileSource(VideoFileSource&& old)
 				: m_ctx(old.m_ctx)
 				, m_span(old.m_span)
-				, m_requires_transcoding(old.m_requires_transcoding)
-				, m_decoder(old.m_decoder)
-				, m_encoder(old.m_encoder)
-				, m_frame_buf(old.m_frame_buf)
-				, m_video_params(old.m_video_params)
+				, m_pkt_no(old.m_pkt_no)
+				, m_dts_jump(old.m_dts_jump)
 			{
 				old.m_ctx = nullptr;
-				old.m_decoder = nullptr;
-				old.m_encoder = nullptr;
-				old.m_frame_buf = nullptr;
-				old.m_requires_transcoding = false;
 			}
 
 		private:
@@ -246,7 +201,7 @@ namespace vcat::filter {
 			void calculate_info(const std::string& path) {
 				AVFormatContext *ctx = avformat_alloc_context();
 				ctx->pb = m_file.get();
-				ctx->flags |= AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
+				ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
 
 				error::handle_ffmpeg_error(m_span,
 					avformat_open_input(&ctx, path.c_str(), NULL, NULL)
@@ -269,6 +224,9 @@ namespace vcat::filter {
 					throw error::no_video(m_span, path);
 				}
 
+				std::optional<int64_t> first_defined_dts = {};
+				int64_t num_undef_dts = 0;
+
 				m_dts_end_info = {0, 0};
 				m_pts_end_info = {0, 0};
 				m_dts_start = 0;
@@ -280,6 +238,36 @@ namespace vcat::filter {
 
 					if(pkt->stream_index == m_video_idx) {
 						av_packet_rescale_ts(pkt, ctx->streams[pkt->stream_index]->time_base, constants::TIMEBASE);
+
+						// Some formats (ie mkv) do not support negative DTS and instead use `AV_NOPTS_VALUE`
+						//
+						// Some of vcat's filters do not like this, so we need to manually reconstruct the DTS. That's
+						// what this information is for.
+						if(!first_defined_dts) {
+							if(pkt->dts == AV_NOPTS_VALUE) {
+								num_undef_dts++;
+								continue;
+							} else {
+								// It would be genuinely insane if a file with this property did not start with a DTS of
+								// zero, but we will handle this case anyway
+								first_defined_dts = pkt->dts;
+
+								if(pkt->duration > 0) {
+									m_dts_jump = pkt->duration;
+								} else { // default to 60Hz
+									constexpr int64_t dts_jump = constants::TIMEBASE.den / (constants::TIMEBASE.num * 60);
+									m_dts_jump = dts_jump;
+								}
+							}
+						}
+
+						if(pkt->dts == AV_NOPTS_VALUE) {
+							throw error::no_dts(m_span);
+						}
+
+						if(pkt->pts == AV_NOPTS_VALUE) {
+							throw error::no_pts(m_span);
+						}
 
 						if(pkt->dts >= m_dts_end_info.ts) {
 							TsInfo& packet_info = m_dts_end_info;
@@ -301,6 +289,14 @@ namespace vcat::filter {
 					}
 
 					av_packet_unref(pkt);
+				}
+
+				if(num_undef_dts > 0) {
+					if(!first_defined_dts) {
+						throw error::no_dts(m_span);
+					}
+
+					m_dts_start = *first_defined_dts - num_undef_dts * m_dts_jump;
 				}
 
 				av_packet_free(&pkt);
@@ -347,8 +343,141 @@ namespace vcat::filter {
 		return "Concat";
 	}
 
-	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span s, const AVCodecParameters *params) const {
-		return std::make_unique<VideoFileSource>(m_path, s, params);
+	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span span, const AVCodecParameters *params) const {
+		std::unique_ptr<VideoFileSource> source = std::make_unique<VideoFileSource>(m_path, span);
+
+		if(!params) {
+			return source;
+		}
+
+		if(util::codecs_are_compatible(source->video_codec(), params)) {
+			return source;
+		}
+
+		std::string hash;
+		{
+			Hasher hasher;
+
+			util::hash_avcodec_params(hasher, *params, span);
+			this->hash(hasher);
+
+			hash = hasher.into_string();
+		}
+
+		try {
+			std::filesystem::create_directory("./vcat-cache");
+		} catch(const std::filesystem::filesystem_error& e) {
+			throw error::failed_cache_directory(span, e.what());
+		}
+
+		std::string cached_name = "./vcat-cache/" + hash + ".mkv";
+
+		if(std::filesystem::exists(cached_name)) {
+			return std::make_unique<VideoFileSource>(cached_name, span);
+		}
+
+		std::string tmp_cached_name = "./vcat-cache/~" + hash + ".mkv";
+
+		AVFormatContext *output = nullptr;
+		error::handle_ffmpeg_error(span,
+			avformat_alloc_output_context2(&output, nullptr, nullptr, tmp_cached_name.c_str())
+		);
+
+		AVStream *ostream = avformat_new_stream(output, nullptr);
+
+		error::handle_ffmpeg_error(span,
+			ostream ? 0 : AVERROR_UNKNOWN
+		);
+
+		error::handle_ffmpeg_error(span,
+			avcodec_parameters_copy(ostream->codecpar, params)
+		);
+
+		ostream->time_base = constants::TIMEBASE;
+
+		if(!(output->flags & AVFMT_NOFILE)) {
+			error::handle_ffmpeg_error(span,
+				avio_open(&output->pb, tmp_cached_name.c_str(), AVIO_FLAG_WRITE)
+			);
+		}
+
+		error::handle_ffmpeg_error(span,
+			avformat_write_header(output, nullptr)
+		);
+
+		AVCodecContext *decoder = util::create_decoder(span, source->video_codec(), constants::TIMEBASE);
+		AVCodecContext *encoder = util::create_encoder(span, params,                constants::TIMEBASE);
+
+		AVFrame  *frame      = av_frame_alloc();
+		AVPacket *packet_buf = nullptr;
+		AVPacket *packet     = av_packet_alloc();
+
+		error::handle_ffmpeg_error(span, frame  ? 0 : AVERROR_UNKNOWN);
+		error::handle_ffmpeg_error(span, packet ? 0 : AVERROR_UNKNOWN);
+
+		const uint8_t h264_nalu = params->codec_id == AV_CODEC_ID_H264 ? (params->extradata[4] & 3) + 1 : 0;
+
+		for(;;) {
+			for(;;) {
+				int res = util::transcode_receive_packet(decoder, encoder, &frame, packet);
+				if(res == AVERROR_EOF) {
+					goto finished_transcoding;
+				} else if(res != AVERROR(EAGAIN)) {
+					error::handle_ffmpeg_error(span, res);
+					break;
+				}
+
+				if(!source->next_pkt(&packet)) {
+					error::handle_ffmpeg_error(span,
+						avcodec_send_packet(decoder, nullptr) // send flush packet
+					);
+					continue;
+				}
+
+				error::handle_ffmpeg_error(span,
+					avcodec_send_packet(decoder, packet)
+				);
+				av_packet_unref(packet);
+			}
+
+			packet->pos = -1;
+			packet->stream_index = 0;
+
+			av_packet_rescale_ts(packet, constants::TIMEBASE, ostream->time_base);
+
+			if(h264_nalu) {
+				util::h264_annexb_to_avcc(packet, &packet_buf, h264_nalu);
+				std::swap(packet, packet_buf);
+				av_packet_unref(packet_buf);
+			}
+
+			av_interleaved_write_frame(output, packet);
+
+			av_packet_unref(packet);
+		}
+		finished_transcoding:
+
+		error::handle_ffmpeg_error(span,
+			av_write_trailer(output)
+		);
+
+		if(packet_buf) {
+			av_packet_free(&packet_buf);
+		}
+		av_packet_free(&packet);
+		av_frame_free(&frame);
+
+		if (!(output->oformat->flags & AVFMT_NOFILE)) {
+			error::handle_ffmpeg_error(span,
+				avio_closep(&output->pb)
+			);
+		}
+
+		avformat_free_context(output);
+
+		std::filesystem::rename(tmp_cached_name, cached_name);
+
+		return std::make_unique<VideoFileSource>(cached_name, span);
 	}
 
 	class ConcatSource : public PacketSource {

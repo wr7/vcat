@@ -50,4 +50,6 @@ namespace vcat::filter::util {
 		private:
 			AVIOContext *m_ctx;
 	};
+
+	void h264_annexb_to_avcc(AVPacket *in, AVPacket **out, uint8_t nalu);
 }

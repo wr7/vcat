@@ -9,7 +9,6 @@ extern "C" {
 	#include "libavcodec/packet.h"
 	#include "libavformat/avformat.h"
 	#include "libavutil/error.h"
-	#include "libavutil/mathematics.h"
 }
 
 namespace vcat::muxing {
@@ -59,9 +58,7 @@ namespace vcat::muxing {
 			AVStream *ostream = output->streams[packet->stream_index];
 
 			packet->pos = -1;
-			packet->pts = av_rescale_q(packet->pts, constants::TIMEBASE, ostream->time_base);
-			packet->dts = av_rescale_q(packet->dts, constants::TIMEBASE, ostream->time_base);
-			packet->duration = av_rescale_q(packet->duration, constants::TIMEBASE, ostream->time_base);
+			av_packet_rescale_ts(packet, ostream->time_base, constants::TIMEBASE);
 
 			error::handle_ffmpeg_error(
 				av_interleaved_write_frame(output, packet)
@@ -73,6 +70,10 @@ namespace vcat::muxing {
 		av_packet_free(&packet);
 
 		av_write_trailer(output);
+
+		if (!(output->oformat->flags & AVFMT_NOFILE))
+			avio_closep(&output->pb);
+
 		avformat_free_context(output);
 	}
 }

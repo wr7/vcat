@@ -6,9 +6,33 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <array>
+
+// 😭
+#if defined(__linux__) && !defined (__ANDROID__)
+#  include <endian.h>
+#elif defined(__FreeBSD__) || defined(__NetBSD__)
+#  include <sys/endian.h>
+#elif defined(__OpenBSD__) || defined(__ANDROID__)
+#  include <sys/types.h>
+#  define be16toh(x) betoh16(x)
+#  define be32toh(x) betoh32(x)
+#  define be64toh(x) betoh64(x)
+#elif defined(__WINDOWS__)
+#  include <winsock2.h>
+#  include <sys/param.h>
+#  define be16toh(x) ntohs(x)
+#  define be32toh(x) ntohl(x)
+#  define be64toh(x) ntohll(x)
+#  define htobe16(x) htons(x)
+#  define htobe32(x) htonl(x)
+#  define htobe64(x) htonll(x)
+#else
+#error "Unsupported platform"
+#endif
 
 extern "C" {
 	#include <libavutil/hash.h>
@@ -47,7 +71,11 @@ namespace vcat {
 				return retval;
 			}
 
-			inline std::string as_string() {
+			// Gets the hash as a BASE64 string.
+			//
+			// This will consume the underlying object. It is undefined behavior to do anything with this
+			// object after this method has been called.
+			inline std::string into_string() {
 				std::string retval;
 				retval.resize(45);
 
@@ -123,6 +151,18 @@ namespace vcat {
 			}
 
 			char m_data[len];
+	};
+
+	class HexDump {
+		public:
+			constexpr HexDump(std::span<uint8_t> data)
+				: m_data(data) {}
+
+			HexDump() = delete;
+			friend std::ostream& operator<<(std::ostream& out, const HexDump& h);
+
+		private:
+			std::span<uint8_t> m_data;
 	};
 
 	template<size_t lhs_len, size_t rhs_len>

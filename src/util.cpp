@@ -1,29 +1,10 @@
 #include "src/util.hh"
 #include <cstdint>
+#include <iomanip>
+#include <ios>
+#include <ostream>
+#include <span>
 #include <string>
-
-// 😭
-#if defined(__linux__) && !defined (__ANDROID__)
-#  include <endian.h>
-#elif defined(__FreeBSD__) || defined(__NetBSD__)
-#  include <sys/endian.h>
-#elif defined(__OpenBSD__) || defined(__ANDROID__)
-#  include <sys/types.h>
-#  define be16toh(x) betoh16(x)
-#  define be32toh(x) betoh32(x)
-#  define be64toh(x) betoh64(x)
-#elif defined(__WINDOWS__)
-#  include <winsock2.h>
-#  include <sys/param.h>
-#  define be16toh(x) ntohs(x)
-#  define be32toh(x) ntohl(x)
-#  define be64toh(x) ntohll(x)
-#  define htobe16(x) htons(x)
-#  define htobe32(x) htonl(x)
-#  define htobe64(x) htonll(x)
-#else
-#error "Unsupported platform"
-#endif
 
 extern "C" {
 	#include "libavutil/hash.h"
@@ -83,5 +64,21 @@ namespace vcat {
 	void Hasher::add(const void *data, const size_t nbytes) {
 		m_nbytes += nbytes;
 		av_hash_update(m_hasher, (const uint8_t *) data, nbytes);
+	}
+
+	std::ostream& operator<<(std::ostream& out, const HexDump& h) {
+		std::ios prop(nullptr);
+		prop.copyfmt(out);
+
+		for(size_t i = 0; i < h.m_data.size(); i++) {
+			if(i != 0) {
+				out << " ";
+			}
+
+			out << std::setw(2) << std::setfill('0') << std::hex << +h.m_data[i];
+		}
+
+		out.copyfmt(prop);
+		return out;
 	}
 }

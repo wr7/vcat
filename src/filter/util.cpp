@@ -3,8 +3,11 @@
 #include "src/filter/error.hh"
 #include "src/filter/util.hh"
 #include <cerrno>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <endian.h>
 #include <iostream>
 
 extern "C" {
@@ -226,19 +229,24 @@ namespace vcat::filter::util {
 	}
 
 	static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
-		FILE *avio_ctx = (FILE *) opaque;
+		FILE *file = (FILE *) opaque;
 
-		errno = 0;
-		size_t a = fread(buf, 1, buf_size, avio_ctx);
-		if (errno != 0) {
-			return AVERROR(errno);
+		size_t a = fread(buf, 1, buf_size, file);
+
+		if(a == 0) {
+			if(feof(file)) {
+				clearerr(file);
+				return AVERROR_EOF;
+			} else if(ferror(file)) {
+				clearerr(file);
+				return AVERROR(EIO);
+			}
 		}
 
 		return a;
 	}
 
-	static int64_t seek_func(void *opaque, int64_t offset, int whence)
-	{
+	static int64_t seek_func(void *opaque, int64_t offset, int whence) {
 		FILE *file = (FILE *) opaque;
 
 		if (fseek(file, offset, whence) != 0) {
@@ -249,6 +257,7 @@ namespace vcat::filter::util {
 	}
 
 	VCatAVFile::VCatAVFile(FILE *file) {
+		assert(file);
 		uint8_t *buffer = (decltype(buffer)) av_malloc(4096);
 		m_ctx = avio_alloc_context(buffer, 4096, 0, file, read_packet, nullptr, seek_func);
 	}
@@ -261,6 +270,7 @@ namespace vcat::filter::util {
 		m_ctx->buffer_size = 0;
 
 		FILE *file = (FILE *) m_ctx->opaque;
+		assert(file);
 
 		fseek(file, 0, SEEK_SET);
 
@@ -276,9 +286,65 @@ namespace vcat::filter::util {
 
 	VCatAVFile::~VCatAVFile() {
 		if(m_ctx) {
+			assert(m_ctx->opaque);
 			fclose((FILE *) m_ctx->opaque);
 			av_free(m_ctx->buffer);
 			avio_context_free(&m_ctx);
 		}
+	}
+
+	// Converts Annex-B bitstream to AVCC bitstream
+	void h264_annexb_to_avcc(AVPacket *in, AVPacket **out, uint8_t nalu) {
+		assert(out);
+		assert(1 <= nalu && nalu <= 4);
+
+		if(!*out) {
+			*out = av_packet_alloc();
+		}
+
+		av_new_packet(*out, in->size);
+		av_packet_copy_props(*out, in);
+
+		size_t out_idx = 0;
+		size_t nal_start = 0; // the start of the packet including the length prefix
+
+		for(int i = 0; i < in->size; i++) {
+			if(in->data[i] == 0x00 &&
+			   in->size - i >= 4 &&
+			   in->data[i + 1] == 0x00 &&
+			   in->data[i + 2] == 0x01
+			){
+				if(out_idx > 0 && (*out)->data[out_idx - 1] == 0x00) {
+					out_idx -= 1;
+				}
+
+				if(out_idx != 0) {
+					size_t nal_len = out_idx - nal_start - nalu;
+					nal_len = htobe32(nal_len << (32 - 8 * nalu));
+
+					memcpy((*out)->data + nal_start, &nal_len, nalu);
+				}
+
+				nal_start = out_idx;
+				out_idx += nalu;
+
+				i += 2;
+			} else {
+				if(out_idx >= (size_t) (*out)->size) {
+					av_grow_packet(*out, 5);
+				}
+
+				(*out)->data[out_idx++] = in->data[i];
+			}
+		}
+
+		if(out_idx != 0) {
+			size_t nal_len = out_idx - nal_start - nalu;
+			nal_len = htobe32(nal_len << (32 - 8 * nalu));
+
+			memcpy((*out)->data + nal_start, &nal_len, nalu);
+		}
+
+		av_shrink_packet(*out, out_idx);
 	}
 }
