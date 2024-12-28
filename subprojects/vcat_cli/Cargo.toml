@@ -1,0 +1,10 @@
+[package]
+name = "vcat_cli"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+argtea = "1.0.1"

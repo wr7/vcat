@@ -1,0 +1,5 @@
+[wrap-file]
+method = cargo
+
+[provide]
+dependency_names = vcat_cli-0.1-rs

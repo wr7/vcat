@@ -14,6 +14,8 @@ using vcat::Spanned;
 using vcat::Token;
 using vcat::parser::Expression;
 
+extern "C" void rust_hello();
+
 // TODO:
 // - support user-specified codecs
 // - support multiple streams with concat filter
@@ -21,6 +23,8 @@ using vcat::parser::Expression;
 // - calculate correct timestamp information with transcoded streams
 
 int main() {
+	rust_hello();
+
 	std::string_view input_test = R"--(
     concat(
         vopen("prism2.mp4"),
