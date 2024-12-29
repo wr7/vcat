@@ -8,3 +8,4 @@ crate-type = ["staticlib"]
 
 [dependencies]
 argtea = "1.0.1"
+libc = "0.2.169"

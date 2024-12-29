@@ -1,7 +1,9 @@
 project('vcat', 'cpp',
   version : '0.1',
-  meson_version : '>=1.5.0',
+  meson_version : '>=1.6.1',
   default_options : ['warning_level=3', 'cpp_std=c++20'])
+
+vcat_cli = subproject('vcat_cli')
 
 ffmpeg_deps = [
   dependency('libswscale'),
@@ -13,6 +15,17 @@ ffmpeg_deps = [
   dependency('libavfilter'),
   dependency('libswresample')
 ]
+
+gawk = find_program('gawk')
+
+shared_rs = vcat_cli.get_variable('shared_rs')
+
+shared_hh = custom_target('shared_hh'
+ ,output  : 'raw_shared.hh'
+ ,input   : ['codegen/shared_to_cpp.awk', shared_rs]
+ ,command : [gawk, '-f', '@INPUT0@', '--', '@INPUT1@']
+ ,capture : true
+)
 
 source_files = [
   'src/main.cpp'
@@ -29,6 +42,7 @@ source_files = [
  ,'src/parser.cpp'
  ,'src/parser/expression.cpp'
  ,'src/parser/util.cpp'
+ ,shared_hh
 ]
 
 vcat_cli_dep = dependency('vcat_cli-0.1-rs')

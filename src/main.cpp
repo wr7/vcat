@@ -7,6 +7,8 @@
 #include "src/parser.hh"
 #include "src/parser/expression.hh"
 #include "src/util.hh"
+#include "src/shared.hh"
+
 #include <iostream>
 #include <string_view>
 
