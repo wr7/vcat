@@ -4,7 +4,9 @@ macro_rules! vcat_def {
             $(template<typename $T:ident>)?
             struct $struct_name:ident {
                 $(field($name:ident, $($type:tt)+);)*
+                $(has_destructor();)?
             };
+            $(rust_drop($dropper_name:ident);)?
         )*
     ) => {
         $(
@@ -14,6 +16,11 @@ macro_rules! vcat_def {
                     pub(super) $name : vcat_get_type!{$($type)+},
                 )*
             }
+
+            $(
+                #[no_mangle]
+                extern "C" fn $dropper_name(_: $struct_name) {}
+            )?
         )*
     };
 }

@@ -4,9 +4,11 @@ function process_line(line) {
   if(match(line, /^([\t ]*)struct ([A-Za-z\d_]+)/, r)) {
     print r[1] "#undef STRUCT_NAME"
     print r[1] "#define STRUCT_NAME " r[2]
+    print line
+    print "public:"
+  } else {
+    print line
   }
-
-  print line
 }
 
 {
