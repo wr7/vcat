@@ -13,13 +13,13 @@ macro_rules! vcat_def {
             #[repr(C)]
             pub struct $struct_name$(<$T>)? {
                 $(
-                    pub(super) $name : vcat_get_type!{$($type)+},
+                    pub $name : vcat_get_type!{$($type)+},
                 )*
             }
 
             $(
                 #[no_mangle]
-                extern "C" fn $dropper_name(_: $struct_name) {}
+                extern "C" fn $dropper_name(v: *mut $struct_name) { unsafe {v.read();} }
             )?
         )*
     };

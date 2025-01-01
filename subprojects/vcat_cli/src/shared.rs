@@ -11,6 +11,7 @@ mod shared {
     core::include! {"../inc/shared.rs"}
 }
 
+#[allow(unused)]
 impl<T> shared::Vector<T> {
     pub fn new() -> Self {
         Self {
@@ -56,8 +57,29 @@ impl<T> shared::Vector<T> {
 
 impl<T> Drop for shared::Vector<T> {
     fn drop(&mut self) {
+        if self.data.is_null() {
+            return;
+        }
+
         unsafe {
             libc::free(self.data.cast::<c_void>());
         }
+    }
+}
+
+impl<T> From<&[T]> for shared::Vector<T> {
+    fn from(value: &[T]) -> Self {
+        let mut ret_val = Self::new();
+        ret_val.reserve(value.len());
+
+        unsafe {
+            value
+                .as_ptr()
+                .copy_to_nonoverlapping(ret_val.data, value.len());
+        }
+
+        ret_val.length = value.len();
+
+        ret_val
     }
 }

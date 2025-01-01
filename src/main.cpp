@@ -25,15 +25,11 @@ extern "C" void rust_hello();
 // - calculate correct timestamp information with transcoded streams
 
 int main() {
-	rust_hello();
+	shared::Parameters params = shared::vcat_cli_parse();
 
-	std::string_view input_test = R"--(
-    concat(
-        vopen("prism2.mp4"),
-        vopen("prism.mp4"),
-    )
-	)--";
-	vcat::Lexer lexer = vcat::Lexer(input_test);
+	std::string_view script((char *) params.script.data, params.script.capacity);
+
+	vcat::Lexer lexer = vcat::Lexer(script);
 
 	std::vector<Spanned<Token>> tokens;
 	try {
@@ -61,6 +57,6 @@ int main() {
 		vcat::muxing::write_output(Spanned<const vcat::EObject&>(object, expression->span));
 
 	} catch (vcat::Diagnostic d) {
-		std::cout << '\n' << d.render(input_test) << '\n';
+		std::cout << '\n' << d.render(script) << '\n';
 	}
 }

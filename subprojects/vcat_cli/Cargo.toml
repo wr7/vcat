@@ -7,5 +7,5 @@ edition = "2021"
 crate-type = ["staticlib"]
 
 [dependencies]
-argtea = "1.0.1"
+argtea = "2.0.0"
 libc = "0.2.169"

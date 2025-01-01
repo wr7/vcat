@@ -8,19 +8,21 @@ namespace shared {
 	template<typename T>
 	using vcat_pointer_to = T*;
 
-	#define vcat_def(x) x
-	#define field(name, ty) union{ty name;};
+	#define field(name, ty) union{ty name;}
 	#define pointer(ty) vcat_pointer_to<ty>
 
 	#define has_destructor() inline ~STRUCT_NAME()
 
 	#define rust_drop(name) \
-		extern "C" void name(STRUCT_NAME); \
-		inline STRUCT_NAME::~STRUCT_NAME() {name(*this);}
+		extern "C" void name(STRUCT_NAME *); \
+		inline STRUCT_NAME::~STRUCT_NAME() {name(this);}
 
 	#include "raw_shared.hh"
 
-	#undef vcat_def
+	#undef STRUCT_NAME
+	#undef has_destructor
+	#undef rust_drop
+
 	#undef field
 	#undef pointer
 
@@ -32,4 +34,6 @@ namespace shared {
 		capacity = 0;
 		length = 0;
 	}
+
+	extern "C" Parameters vcat_cli_parse();
 }
