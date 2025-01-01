@@ -27,9 +27,9 @@ extern "C" void rust_hello();
 int main() {
 	shared::Parameters params = shared::vcat_cli_parse();
 
-	std::string_view script((char *) params.script.data, params.script.capacity);
+	std::string_view expression((char *) params.expression.data, params.expression.capacity);
 
-	vcat::Lexer lexer = vcat::Lexer(script);
+	vcat::Lexer lexer = vcat::Lexer(expression);
 
 	std::vector<Spanned<Token>> tokens;
 	try {
@@ -57,6 +57,6 @@ int main() {
 		vcat::muxing::write_output(Spanned<const vcat::EObject&>(object, expression->span));
 
 	} catch (vcat::Diagnostic d) {
-		std::cout << '\n' << d.render(script) << '\n';
+		std::cout << '\n' << d.render(expression) << '\n';
 	}
 }

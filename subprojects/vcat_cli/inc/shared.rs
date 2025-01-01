@@ -17,7 +17,7 @@ vcat_def!(
     };
 
     struct Parameters {
-        field(script, Vector<uint8_t>);
+        field(expression, Vector<uint8_t>);
 
         has_destructor();
     };
