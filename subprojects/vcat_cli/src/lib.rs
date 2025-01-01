@@ -30,7 +30,7 @@ argtea_impl! {
                 std::process::exit(-1);
             };
 
-            expression = Some(expr.as_bytes().into());
+            expression = Some(expr.into());
         }
 
         /// Interperets the contents of `file` as a script for generating video
@@ -75,7 +75,6 @@ argtea_impl! {
                         std::eprintln!("Failed to open file `{file_name}`: {err}");
                         std::process::exit(-1)
                     })
-                    .as_slice()
                     .into()
             });
 

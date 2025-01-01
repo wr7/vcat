@@ -26,14 +26,15 @@ namespace shared {
 	#undef field
 	#undef pointer
 
+	extern "C" Parameters vcat_cli_parse();
+	extern "C" void rustalloc_free(void *data, size_t size, size_t align);
+
 	template<typename T>
 	inline Vector<T>::~Vector() {
-		free(data);
+		rustalloc_free(data, sizeof(T) * capacity, alignof(T));
 
 		data = nullptr;
 		capacity = 0;
 		length = 0;
 	}
-
-	extern "C" Parameters vcat_cli_parse();
 }
