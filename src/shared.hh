@@ -31,6 +31,10 @@ namespace shared {
 
 	template<typename T>
 	inline Vector<T>::~Vector() {
+		for(size_t i = 0; i < length; i++) {
+			data[i].~T();
+		}
+
 		rustalloc_free(data, sizeof(T) * capacity, alignof(T));
 
 		data = nullptr;
