@@ -18,6 +18,8 @@ vcat_def!(
 
     struct Parameters {
         field(expression, Vector<uint8_t>);
+        field(width, int32_t);
+        field(height, int32_t);
 
         has_destructor();
     };

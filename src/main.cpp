@@ -25,7 +25,7 @@ extern "C" void rust_hello();
 // - calculate correct timestamp information with transcoded streams
 
 int main() {
-	shared::Parameters params = shared::vcat_cli_parse();
+	const shared::Parameters params = shared::vcat_cli_parse();
 
 	std::string_view expression((char *) params.expression.data, params.expression.capacity);
 
@@ -54,7 +54,7 @@ int main() {
 
 		std::cout << "hash: " << hasher.into_string() << "\n";
 
-		vcat::muxing::write_output(Spanned<const vcat::EObject&>(object, expression->span));
+		vcat::muxing::write_output(Spanned<const vcat::EObject&>(object, expression->span), params);
 
 	} catch (vcat::Diagnostic d) {
 		std::cout << '\n' << d.render(expression) << '\n';

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/error.hh"
+#include "src/filter/params.hh"
 #include "src/util.hh"
 
 extern "C" {
@@ -12,8 +13,8 @@ extern "C" {
 
 namespace vcat::filter::util {
 	bool codecs_are_compatible(const AVCodecParameters *params1, const AVCodecParameters *params2);
-	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params, AVRational time_base);
-	AVCodecContext *create_encoder(Span span, const AVCodecParameters *params, AVRational time_base);
+	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params);
+	AVCodecContext *create_encoder(Span span, const VideoParameters& params);
 
 	void hash_avcodec_params(Hasher& hasher, const AVCodecParameters& p, Span s);
 
@@ -50,6 +51,4 @@ namespace vcat::filter::util {
 		private:
 			AVIOContext *m_ctx;
 	};
-
-	void h264_annexb_to_avcc(AVPacket *in, AVPacket **out, uint8_t nalu);
 }

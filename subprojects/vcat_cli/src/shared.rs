@@ -5,6 +5,7 @@ pub use shared::*;
 mod shared {
     use crate::ffi_macros::*;
 
+    use i32 as int32_t;
     use u8 as uint8_t;
     use usize as size_t;
 

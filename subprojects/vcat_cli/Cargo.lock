@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "argtea"
-version = "2.0.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a981dbaee71b2237fa2cdea68ca3dfe40689c25548dfbbb8c8fb29a238076da"
+checksum = "a5defc09ee962ea8acffab00e795709fea9749bebca3718e5bf6a0412eba28f5"
 
 [[package]]
 name = "vcat_cli"

@@ -2,6 +2,7 @@
 #include "src/constants.hh"
 #include "src/error.hh"
 #include "src/filter/error.hh"
+#include "src/filter/params.hh"
 #include "src/util.hh"
 #include "src/filter/util.hh"
 
@@ -343,23 +344,21 @@ namespace vcat::filter {
 		return "Concat";
 	}
 
-	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span span, const AVCodecParameters *params) const {
+	std::unique_ptr<PacketSource> VideoFile::get_pkts(Span span, const VideoParameters& params) const {
 		std::unique_ptr<VideoFileSource> source = std::make_unique<VideoFileSource>(m_path, span);
-
-		if(!params) {
-			return source;
-		}
-
-		if(util::codecs_are_compatible(source->video_codec(), params)) {
-			return source;
-		}
 
 		std::string hash;
 		{
 			Hasher hasher;
 
-			util::hash_avcodec_params(hasher, *params, span);
+			hasher.add("_cached-video_");
+
+			const size_t start = hasher.pos();
+
+			params.hash(hasher);
 			this->hash(hasher);
+
+			hasher.add(static_cast<uint64_t>(hasher.pos() - start));
 
 			hash = hasher.into_string();
 		}
@@ -389,8 +388,10 @@ namespace vcat::filter {
 			ostream ? 0 : AVERROR_UNKNOWN
 		);
 
+		AVCodecContext *encoder = util::create_encoder(span, params);
+
 		error::handle_ffmpeg_error(span,
-			avcodec_parameters_copy(ostream->codecpar, params)
+			avcodec_parameters_from_context(ostream->codecpar, encoder)
 		);
 
 		ostream->time_base = constants::TIMEBASE;
@@ -405,17 +406,13 @@ namespace vcat::filter {
 			avformat_write_header(output, nullptr)
 		);
 
-		AVCodecContext *decoder = util::create_decoder(span, source->video_codec(), constants::TIMEBASE);
-		AVCodecContext *encoder = util::create_encoder(span, params,                constants::TIMEBASE);
+		AVCodecContext *decoder = util::create_decoder(span, source->video_codec());
 
 		AVFrame  *frame      = av_frame_alloc();
-		AVPacket *packet_buf = nullptr;
 		AVPacket *packet     = av_packet_alloc();
 
 		error::handle_ffmpeg_error(span, frame  ? 0 : AVERROR_UNKNOWN);
 		error::handle_ffmpeg_error(span, packet ? 0 : AVERROR_UNKNOWN);
-
-		const uint8_t h264_nalu = params->codec_id == AV_CODEC_ID_H264 ? (params->extradata[4] & 3) + 1 : 0;
 
 		for(;;) {
 			for(;;) {
@@ -445,12 +442,6 @@ namespace vcat::filter {
 
 			av_packet_rescale_ts(packet, constants::TIMEBASE, ostream->time_base);
 
-			if(h264_nalu) {
-				util::h264_annexb_to_avcc(packet, &packet_buf, h264_nalu);
-				std::swap(packet, packet_buf);
-				av_packet_unref(packet_buf);
-			}
-
 			av_interleaved_write_frame(output, packet);
 
 			av_packet_unref(packet);
@@ -461,9 +452,6 @@ namespace vcat::filter {
 			av_write_trailer(output)
 		);
 
-		if(packet_buf) {
-			av_packet_free(&packet_buf);
-		}
 		av_packet_free(&packet);
 		av_frame_free(&frame);
 
@@ -484,14 +472,21 @@ namespace vcat::filter {
 		public:
 			ConcatSource() = delete;
 
-			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span, const AVCodecParameters *params)
+			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span, const VideoParameters& params)
 				: m_idx(0)
 				, m_span(span) {
+
+				const AVCodecParameters *prev_param = nullptr;
+
 				for(const auto& video : videos) {
 					m_videos.push_back(video->get_pkts(video.span, params));
-					if(!params) {
-						params = m_videos.back()->video_codec();
+					const AVCodecParameters *cur_param = m_videos.back()->video_codec();
+
+					if(prev_param) {
+						assert(util::codecs_are_compatible(cur_param, prev_param)); // TODO: generate an actual error message
 					}
+
+					prev_param = cur_param;
 				}
 
 				calculate_ts_offsets();
@@ -602,7 +597,7 @@ namespace vcat::filter {
 			Span                                       m_span;
 	};
 
-	std::unique_ptr<PacketSource> Concat::get_pkts(Span s, const AVCodecParameters *params) const {
+	std::unique_ptr<PacketSource> Concat::get_pkts(Span s, const VideoParameters& params) const {
 		return std::make_unique<ConcatSource>(m_videos, s, params);
 	}
 }

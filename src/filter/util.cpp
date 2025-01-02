@@ -1,6 +1,8 @@
 #include "src/util.hh"
+#include "src/constants.hh"
 #include "src/error.hh"
 #include "src/filter/error.hh"
+#include "src/filter/params.hh"
 #include "src/filter/util.hh"
 #include <cerrno>
 #include <cstdint>
@@ -137,7 +139,7 @@ namespace vcat::filter::util {
 		hasher.add((uint64_t) (hasher.pos() - start));
 	}
 
-	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params, AVRational) {
+	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params) {
 		const AVCodec *av_decoder = avcodec_find_decoder(params->codec_id);
 		if(!av_decoder) {
 			throw error::ffmpeg_no_codec(span, params->codec_id);
@@ -155,20 +157,21 @@ namespace vcat::filter::util {
 		return decode_ctx;
 	}
 
-	AVCodecContext *create_encoder(Span span, const AVCodecParameters *params, AVRational time_base) {
-		const AVCodec *av_encoder = avcodec_find_encoder(params->codec_id);
+	AVCodecContext *create_encoder(Span span, const VideoParameters& params) {
+		const AVCodec *av_encoder = avcodec_find_encoder(AV_CODEC_ID_H264);
 		if(!av_encoder) {
-			throw error::ffmpeg_no_codec(span, params->codec_id);
+			throw error::ffmpeg_no_codec(span, AV_CODEC_ID_H264);
 		}
 
 		AVCodecContext *encode_ctx = avcodec_alloc_context3(av_encoder);
 		error::handle_ffmpeg_error(span, encode_ctx ? 0 : AVERROR_UNKNOWN);
 
-		error::handle_ffmpeg_error(span,
-			avcodec_parameters_to_context(encode_ctx, params)
-		);
+		encode_ctx->width = params.width;
+		encode_ctx->height = params.height;
+		encode_ctx->time_base = constants::TIMEBASE;
+		encode_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
 
-		encode_ctx->time_base = time_base;
+		encode_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
 		avcodec_open2(encode_ctx, av_encoder, nullptr);
 
@@ -291,60 +294,5 @@ namespace vcat::filter::util {
 			av_free(m_ctx->buffer);
 			avio_context_free(&m_ctx);
 		}
-	}
-
-	// Converts Annex-B bitstream to AVCC bitstream
-	void h264_annexb_to_avcc(AVPacket *in, AVPacket **out, uint8_t nalu) {
-		assert(out);
-		assert(1 <= nalu && nalu <= 4);
-
-		if(!*out) {
-			*out = av_packet_alloc();
-		}
-
-		av_new_packet(*out, in->size);
-		av_packet_copy_props(*out, in);
-
-		size_t out_idx = 0;
-		size_t nal_start = 0; // the start of the packet including the length prefix
-
-		for(int i = 0; i < in->size; i++) {
-			if(in->data[i] == 0x00 &&
-			   in->size - i >= 4 &&
-			   in->data[i + 1] == 0x00 &&
-			   in->data[i + 2] == 0x01
-			){
-				if(out_idx > 0 && (*out)->data[out_idx - 1] == 0x00) {
-					out_idx -= 1;
-				}
-
-				if(out_idx != 0) {
-					size_t nal_len = out_idx - nal_start - nalu;
-					nal_len = htobe32(nal_len << (32 - 8 * nalu));
-
-					memcpy((*out)->data + nal_start, &nal_len, nalu);
-				}
-
-				nal_start = out_idx;
-				out_idx += nalu;
-
-				i += 2;
-			} else {
-				if(out_idx >= (size_t) (*out)->size) {
-					av_grow_packet(*out, 5);
-				}
-
-				(*out)->data[out_idx++] = in->data[i];
-			}
-		}
-
-		if(out_idx != 0) {
-			size_t nal_len = out_idx - nal_start - nalu;
-			nal_len = htobe32(nal_len << (32 - 8 * nalu));
-
-			memcpy((*out)->data + nal_start, &nal_len, nalu);
-		}
-
-		av_shrink_packet(*out, out_idx);
 	}
 }

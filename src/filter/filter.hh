@@ -3,6 +3,7 @@
 #include "src/error.hh"
 #include "src/eval/eobject.hh"
 #include "src/filter/error.hh"
+#include "src/filter/params.hh"
 #include <memory>
 #include <vector>
 
@@ -33,7 +34,7 @@ namespace vcat::filter {
 
 	class VFilter : public EObject {
 		public:
-			virtual std::unique_ptr<PacketSource> get_pkts(Span, const AVCodecParameters *) const = 0;
+			virtual std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters&) const = 0;
 	};
 	static_assert(std::is_abstract<VFilter>());
 
@@ -44,7 +45,7 @@ namespace vcat::filter {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			std::unique_ptr<PacketSource> get_pkts(Span, const AVCodecParameters *) const;
+			std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters&) const;
 
 			// NOTE: throws `std::string` upon IO failure
 			VideoFile(std::string&& path);
@@ -62,7 +63,7 @@ namespace vcat::filter {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			std::unique_ptr<PacketSource> get_pkts(Span, const AVCodecParameters *params) const;
+			std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters& params) const;
 
 			constexpr Concat(std::vector<Spanned<const VFilter&>> videos, Span s) : m_videos(std::move(videos)) {
 				if(m_videos.empty()) {

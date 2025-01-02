@@ -1,5 +1,6 @@
 #include "src/constants.hh"
 #include "src/eval/eobject.hh"
+#include "src/filter/params.hh"
 #include "src/muxing/error.hh"
 #include "src/filter/filter.hh"
 #include "src/muxing.hh"
@@ -12,7 +13,7 @@ extern "C" {
 }
 
 namespace vcat::muxing {
-	void write_output(Spanned<const vcat::EObject&> eobject) {
+	void write_output(Spanned<const vcat::EObject&> eobject, const shared::Parameters& params) {
 		vcat::Span span = eobject.span;
 
 		const vcat::filter::VFilter *filter = dynamic_cast<const vcat::filter::VFilter *>(&eobject.val);
@@ -21,7 +22,12 @@ namespace vcat::muxing {
 			throw error::invalid_output(span);
 		}
 
-		std::unique_ptr<filter::PacketSource> source = filter->get_pkts(span, nullptr);
+		const filter::VideoParameters vid_params{
+			.width = params.width,
+			.height=params.height,
+		};
+
+		std::unique_ptr<filter::PacketSource> source = filter->get_pkts(span, vid_params);
 		const AVCodecParameters *ivcodec = source->video_codec();
 
 		AVFormatContext *output = nullptr;
