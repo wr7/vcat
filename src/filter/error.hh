@@ -14,6 +14,7 @@ namespace vcat::filter::error {
 	using Hint = Diagnostic::Hint;
 
 	inline Diagnostic ffmpeg_error(std::string_view msg, Span s) {
+		std::abort();
 		return Diagnostic(
 			std::format("FFMPEG error: {}", msg),
 			{
@@ -88,6 +89,15 @@ namespace vcat::filter::error {
 	inline Diagnostic ffmpeg_no_codec(Span s, AVCodecID codec_id) {
 		return Diagnostic(
 			std::format("The local build of FFMPEG does not support codec `{}`", avcodec_get_name(codec_id)),
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
+	inline Diagnostic ffmpeg_no_filter(Span s, std::string_view filter) {
+		return Diagnostic(
+			std::format("The local build of FFMPEG does not support filter `{}`", filter),
 			{
 				Hint::error("", s)
 			}

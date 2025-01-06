@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <endian.h>
+#include <format>
 #include <iostream>
 
 extern "C" {
@@ -17,13 +18,16 @@ extern "C" {
 	#include <libavcodec/codec_par.h>
 	#include <libavcodec/packet.h>
 	#include <libavcodec/codec_id.h>
+	#include <libavfilter/avfilter.h>
+	#include <libavfilter/buffersrc.h>
+	#include <libavfilter/buffersink.h>
 	#include <libavformat/avformat.h>
 	#include <libavformat/avio.h>
 	#include <libavutil/avutil.h>
 	#include <libavutil/error.h>
 	#include <libavutil/frame.h>
 	#include <libavutil/rational.h>
-}
+	}
 
 namespace vcat::filter::util {
 	bool codecs_are_compatible(const AVCodecParameters *params1, const AVCodecParameters *params2) {
@@ -178,6 +182,68 @@ namespace vcat::filter::util {
 		return encode_ctx;
 	}
 
+	AVFilterGraph  *create_filtergraph(Span span, const char *string, const FrameInfo& input_info, AVFilterContext **input, AVFilterContext **output) {
+		const AVFilter *buffer = avfilter_get_by_name("buffer");
+		const AVFilter *buffersink = avfilter_get_by_name("buffersink");
+
+		if(!buffer) {
+			throw error::ffmpeg_no_filter(span, "buffer");
+		}
+		if(!buffersink) {
+			throw error::ffmpeg_no_filter(span, "buffersink");
+		}
+
+		AVFilterGraph *filter_graph = avfilter_graph_alloc();
+		error::handle_ffmpeg_error(span, filter_graph ? 0 : AVERROR(ENOMEM));
+
+		*input = avfilter_graph_alloc_filter(filter_graph, buffer, "in");
+		*output = avfilter_graph_alloc_filter(filter_graph, buffersink, "out");
+
+		AVFilterInOut *inputs  = avfilter_inout_alloc();
+		AVFilterInOut *outputs = avfilter_inout_alloc();
+
+		error::handle_ffmpeg_error(span, *input && *output && inputs && outputs ? 0 : AVERROR(ENOMEM));
+
+		error::handle_ffmpeg_error(span,
+			avfilter_init_str(*output, nullptr)
+		);
+
+		error::handle_ffmpeg_error(span,
+			avfilter_init_str(
+				*input,
+				std::format(
+					"width={}:height={}:pix_fmt={}:time_base={}/{}:sar={}/{}",
+					input_info.width,
+					input_info.height,
+					static_cast<int>(input_info.pix_fmt),
+					constants::TIMEBASE.num,
+					constants::TIMEBASE.den,
+					input_info.sar.num,
+					input_info.sar.den
+				).c_str())
+		);
+
+		inputs->filter_ctx = *input;
+		inputs->name = av_strdup("in");
+		inputs->pad_idx = 0;
+		inputs->next = nullptr;
+
+		outputs->filter_ctx = *output;
+		outputs->name = av_strdup("out");
+		outputs->pad_idx = 0;
+		outputs->next = nullptr;
+
+		error::handle_ffmpeg_error(span,
+			avfilter_graph_parse(filter_graph, string, outputs, inputs, nullptr)
+		);
+
+		error::handle_ffmpeg_error(span,
+			avfilter_graph_config(filter_graph, nullptr)
+		);
+
+		return filter_graph;
+	}
+
 	bool read_packet_from_stream(Span span, AVFormatContext *ctx, int stream_idx, AVPacket *packet) {
 		for(;;) {
 			int ret = av_read_frame(ctx, packet);
@@ -294,5 +360,65 @@ namespace vcat::filter::util {
 			av_free(m_ctx->buffer);
 			avio_context_free(&m_ctx);
 		}
+	}
+
+	FrameInfo::FrameInfo(const AVCodecContext *decoder)
+		: width(decoder->width)
+		, height(decoder->height)
+		, pix_fmt(decoder->pix_fmt)
+		, sar(decoder->sample_aspect_ratio)
+	{}
+	
+
+	Rescaler::Rescaler(Span span, const FrameInfo& info, const VideoParameters& output)
+	: m_span(span)
+	, m_input(nullptr)
+	, m_output(nullptr)
+	, m_filter_graph(nullptr)
+	{
+		if(
+			info.width   == output.width            &&
+			info.height  == output.height           &&
+			info.pix_fmt == constants::PIXEL_FORMAT &&
+			av_cmp_q(info.sar, constants::SAMPLE_ASPECT_RATIO) == 0
+		) {
+			return;
+		}
+
+		m_filter_graph = create_filtergraph(
+			m_span,
+			std::format(
+				"format={},"
+				"scale={}:{}:force_original_aspect_ratio=decrease,"
+				"pad={}:{}:-1:-1",
+				static_cast<int>(constants::PIXEL_FORMAT),
+				output.width,
+				output.height,
+				output.width,
+				output.height
+			).c_str(),
+			info,
+			&m_input,
+			&m_output
+		);
+	}
+
+	void Rescaler::rescale(AVFrame *frame) const {
+		if(!m_filter_graph) {
+			return;
+		}
+
+		error::handle_ffmpeg_error(m_span,
+			av_buffersrc_add_frame(m_input, frame)
+		);
+
+		error::handle_ffmpeg_error(m_span,
+			av_buffersink_get_frame(m_output, frame)
+		);
+	}
+	
+
+	Rescaler::~Rescaler() {
+		avfilter_graph_free(&m_filter_graph);
 	}
 }

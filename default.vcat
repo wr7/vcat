@@ -1,5 +1,5 @@
 concat(
-    vopen("prism2.mp4"),
     vopen("prism.mp4"),
+    vopen("stripped.mp4"),
 )
 

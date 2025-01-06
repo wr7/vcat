@@ -98,8 +98,8 @@ argtea_impl! {
         pub extern "C" fn parse() -> Self {
             let mut expression: Option<shared::Vector<u8>> = None;
             let mut file_name: Option<String> = None;
-            let mut width_: i32 = 640;
-            let mut height_: i32 = 630;
+            let mut width_: i32 = 1080;
+            let mut height_: i32 = 720;
 
             parse!(std::env::args().skip(1));
 

@@ -407,21 +407,38 @@ namespace vcat::filter {
 		);
 
 		AVCodecContext *decoder = util::create_decoder(span, source->video_codec());
+		util::Rescaler rescaler(span, decoder, params);
 
-		AVFrame  *frame      = av_frame_alloc();
-		AVPacket *packet     = av_packet_alloc();
+		AVFrame  *frame  = av_frame_alloc();
+		AVPacket *packet = av_packet_alloc();
 
 		error::handle_ffmpeg_error(span, frame  ? 0 : AVERROR_UNKNOWN);
 		error::handle_ffmpeg_error(span, packet ? 0 : AVERROR_UNKNOWN);
 
 		for(;;) {
 			for(;;) {
-				int res = util::transcode_receive_packet(decoder, encoder, &frame, packet);
+				int res = avcodec_receive_packet(encoder, packet);
 				if(res == AVERROR_EOF) {
 					goto finished_transcoding;
 				} else if(res != AVERROR(EAGAIN)) {
 					error::handle_ffmpeg_error(span, res);
 					break;
+				}
+
+				res = avcodec_receive_frame(decoder, frame);
+				if(res == AVERROR_EOF) {
+					error::handle_ffmpeg_error(span,
+						avcodec_send_frame(encoder, nullptr)
+					);
+					continue;
+				} else if(res != AVERROR(EAGAIN)) {
+					error::handle_ffmpeg_error(span, res);
+					rescaler.rescale(frame);
+					error::handle_ffmpeg_error(span,
+						avcodec_send_frame(encoder, frame)
+					);
+					av_frame_unref(frame);
+					continue;
 				}
 
 				if(!source->next_pkt(&packet)) {
