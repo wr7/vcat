@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <array>
+#include <utility>
 
 // 😭
 #if defined(__linux__) && !defined (__ANDROID__)
@@ -184,5 +185,45 @@ namespace vcat {
 			inline decltype(m_inner.next_back()) next() {
 				return m_inner.next_back();
 			}
+	};
+
+	/// A possibly uninitialized value of a class.
+	///
+	/// The destructor must be explicitly called.
+	template<std::movable T>
+	class MaybeUninit
+	{
+		public:
+			/// Stores a value into this object.
+			constexpr void write(T&& val) {
+				new(&m_inner) T(std::move(val));
+			}
+
+			constexpr MaybeUninit(T&& val) {
+				this->write(val);
+			}
+
+			constexpr MaybeUninit() {};
+			constexpr ~MaybeUninit() {};
+
+			constexpr const T *operator->() const {
+				return &m_inner;
+			}
+
+			constexpr T *operator->() {
+				return &m_inner;
+			}
+
+			constexpr const T& operator*() const {
+				return m_inner;
+			}
+
+			constexpr T& operator*() {
+				return m_inner;
+			}
+		private:
+			union {
+				T m_inner;
+			};
 	};
 }

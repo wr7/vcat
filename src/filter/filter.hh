@@ -9,14 +9,24 @@
 
 extern "C" {
 	#include <libavcodec/packet.h>
-	#include "libavcodec/codec_par.h"
+	#include <libavcodec/codec_par.h>
 	#include <libavformat/avformat.h>
+	#include <libavutil/frame.h>
 }
 
 namespace vcat::filter {
 	struct TsInfo {
 		int64_t ts;
 		int64_t duration;
+	};
+
+	class FrameSource {
+		public:
+			// Gets the next frame or returns false if `EOF` is reached
+			//
+			// A double pointer is used to allow for more efficient 'look-ahead' buffers for filters
+			virtual bool next_frame(AVFrame **frame) = 0;
+			virtual ~FrameSource() = default;
 	};
 
 	class PacketSource {
@@ -34,7 +44,8 @@ namespace vcat::filter {
 
 	class VFilter : public EObject {
 		public:
-			virtual std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters&) const = 0;
+			virtual std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters&) const;
+			virtual std::unique_ptr<FrameSource>  get_frames(Span, const VideoParameters&) const = 0;
 	};
 	static_assert(std::is_abstract<VFilter>());
 
@@ -45,7 +56,7 @@ namespace vcat::filter {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters&) const;
+			std::unique_ptr<FrameSource> get_frames(Span, const VideoParameters&) const;
 
 			// NOTE: throws `std::string` upon IO failure
 			VideoFile(std::string&& path);
@@ -64,6 +75,7 @@ namespace vcat::filter {
 			std::string type_name() const;
 
 			std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters& params) const;
+			std::unique_ptr<FrameSource>  get_frames(Span, const VideoParameters&) const;
 
 			constexpr Concat(std::vector<Spanned<const VFilter&>> videos, Span s) : m_videos(std::move(videos)) {
 				if(m_videos.empty()) {
