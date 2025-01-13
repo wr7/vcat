@@ -16,13 +16,12 @@ using vcat::Spanned;
 using vcat::Token;
 using vcat::parser::Expression;
 
-extern "C" void rust_hello();
-
 // TODO:
-// - support user-specified codecs
-// - support multiple streams with concat filter
-// - automatically re-encode when using concat filter
-// - calculate correct timestamp information with transcoded streams
+// - Audio support
+// - Variables
+// - Lambdas
+// - Attempt to re-use the same encoder
+// - Fixed frame rate support
 
 int main() {
 	const shared::Parameters params = shared::vcat_cli_parse();

@@ -87,4 +87,5 @@ namespace vcat::filter {
 	};
 	static_assert(!std::is_abstract<Concat>());
 
+	std::unique_ptr<PacketSource> encode(Span span, const VideoParameters& params, const VFilter& filter);
 }

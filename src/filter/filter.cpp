@@ -22,7 +22,6 @@
 #include <memory>
 #include <sstream>
 #include <fstream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -256,9 +255,8 @@ namespace vcat::filter {
 
 								if(pkt->duration > 0) {
 									m_dts_jump = pkt->duration;
-								} else { // default to 60Hz
-									constexpr int64_t dts_jump = constants::TIMEBASE.den / (constants::TIMEBASE.num * 60);
-									m_dts_jump = dts_jump;
+								} else {
+									m_dts_jump = constants::FALLBACK_FRAME_RATE; // If worst comes to worst, we will just fall back to 60Hz
 								}
 							}
 						}
@@ -524,13 +522,66 @@ namespace vcat::filter {
 		return encode(span, params, *this);
 	}
 
-	class ConcatSource : public PacketSource {
+	class ConcatFrameSource : public FrameSource {
 		public:
-			ConcatSource() = delete;
-
-			ConcatSource(std::span<const Spanned<const VFilter&>> videos, Span span, const VideoParameters& params)
+			ConcatFrameSource() = delete;
+			ConcatFrameSource(std::span<const Spanned<const VFilter&>> videos, const VideoParameters& params)
 				: m_idx(0)
-				, m_span(span) {
+				, m_last_pts(0)
+				, m_last_dur(0)
+				, m_pts_offset(0)
+			{
+				for(const auto& video : videos) {
+					m_videos.push_back(video->get_frames(video.span, params));
+				}
+			}
+
+			bool next_frame(AVFrame **p_frame) {
+				if(m_idx >= m_videos.size()) {
+					return false;
+				}
+
+				AVFrame *frame = *p_frame;
+
+				if(!m_videos[m_idx]->next_frame(p_frame)) {
+					m_idx += 1;
+					m_pts_offset = m_last_pts + m_last_dur;
+					return this->next_frame(p_frame);
+				}
+
+				frame->pts += m_pts_offset;
+
+				if(frame->duration != 0) {
+					m_last_dur = frame->duration;
+				} else {
+					assert(frame->pts >= m_last_pts);
+					m_last_dur = frame->pts - m_last_pts;
+				}
+
+				m_last_pts = frame->pts;
+
+				return true;
+			}
+
+		private:
+			size_t  m_idx;
+			int64_t m_last_pts;
+			int64_t m_last_dur;
+			int64_t m_pts_offset;
+			std::vector<std::unique_ptr<FrameSource>> m_videos;
+	};
+
+	std::unique_ptr<FrameSource> Concat::get_frames(Span, const VideoParameters& params) const {
+		return std::make_unique<ConcatFrameSource>(m_videos, params);
+	}
+
+	class ConcatPktSource : public PacketSource {
+		public:
+			ConcatPktSource() = delete;
+
+			ConcatPktSource(std::span<const Spanned<const VFilter&>> videos, Span, const VideoParameters& params)
+				: m_idx(0)
+			{
 
 				const AVCodecParameters *prev_param = nullptr;
 
@@ -648,16 +699,9 @@ namespace vcat::filter {
 			std::vector<int64_t>                       m_dts_offsets; //< How much the dts of every packet in the videos should be offset
 			std::vector<int64_t>                       m_pts_offsets; //< How much the pts of every packet in the videos should be offset
 			size_t                                     m_idx;
-
-			[[maybe_unused]]
-			Span                                       m_span;
 	};
 
 	std::unique_ptr<PacketSource> Concat::get_pkts(Span s, const VideoParameters& params) const {
-		return std::make_unique<ConcatSource>(m_videos, s, params);
-	}
-
-	std::unique_ptr<FrameSource> Concat::get_frames([[maybe_unused]] Span s, [[maybe_unused]] const VideoParameters& params) const {
-		throw std::runtime_error("Concat::get_frames has not been implemented yet");
+		return std::make_unique<ConcatPktSource>(m_videos, s, params);
 	}
 }

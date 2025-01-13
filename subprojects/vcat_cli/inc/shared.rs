@@ -21,6 +21,8 @@ vcat_def!(
         field(width, int32_t);
         field(height, int32_t);
 
+        field(lossless, bool);
+
         has_destructor();
     };
     rust_drop(Parameters_drop);

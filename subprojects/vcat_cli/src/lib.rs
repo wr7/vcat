@@ -3,11 +3,6 @@ use argtea::argtea_impl;
 mod ffi_macros;
 mod shared;
 
-#[no_mangle]
-extern "C" fn rust_hello() {
-    std::eprintln!("Hello from rust");
-}
-
 use shared::Parameters;
 
 fn get_arg<T>(opt: Option<T>, argument_name: &str, flag: &str) -> T {
@@ -39,6 +34,7 @@ argtea_impl! {
             expression = Some(expr.into());
         }
 
+        /// Sets the output width in pixels (default 1080).
         (f @ "--width" | "-w", width) => {
             let width = get_arg(width, "width", f);
 
@@ -53,6 +49,7 @@ argtea_impl! {
             width_ = width;
         }
 
+        /// Sets the output height in pixels (default 720).
         (f @ "--height" | "-H", height) => {
             let height = get_arg(height, "height", f);
 
@@ -65,6 +62,17 @@ argtea_impl! {
                 });
 
             height_ = height;
+        }
+
+        /// Enables the usage of lossless editing techniques when applicable (default).
+        ("--lossless") => {
+            lossless = true;
+        }
+
+        /// Disables the usage of lossless editing techniques. This severely limits the
+        /// caching functionality of vcat and is mainly useful for testing purposes.
+        ("--no-lossless") => {
+            lossless = false;
         }
 
         /// Interperets the contents of `file` as a script for generating video
@@ -100,6 +108,7 @@ argtea_impl! {
             let mut file_name: Option<String> = None;
             let mut width_: i32 = 1080;
             let mut height_: i32 = 720;
+            let mut lossless = true;
 
             parse!(std::env::args().skip(1));
 
@@ -115,7 +124,7 @@ argtea_impl! {
             });
 
 
-            return Self {expression, width: width_, height: height_};
+            return Self {expression, width: width_, height: height_, lossless};
         }
     }
 }

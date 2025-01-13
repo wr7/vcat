@@ -27,7 +27,14 @@ namespace vcat::muxing {
 			.height=params.height,
 		};
 
-		std::unique_ptr<filter::PacketSource> source = filter->get_pkts(span, vid_params);
+		std::unique_ptr<filter::PacketSource> source;
+
+		if(params.lossless) {
+			source = filter->get_pkts(span, vid_params);
+		} else {
+			source = encode(span, vid_params, *filter);
+		}
+
 		const AVCodecParameters *ivcodec = source->video_codec();
 
 		AVFormatContext *output = nullptr;
