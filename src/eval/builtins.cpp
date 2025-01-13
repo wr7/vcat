@@ -2,6 +2,8 @@
 #include "src/eval/eobject.hh"
 #include "src/eval/error.hh"
 #include "src/filter/filter.hh"
+#include "src/filter/concat.hh"
+#include "src/filter/video_file.hh"
 #include "src/eval/builtins.hh"
 
 #include <optional>

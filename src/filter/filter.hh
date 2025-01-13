@@ -2,10 +2,9 @@
 
 #include "src/error.hh"
 #include "src/eval/eobject.hh"
-#include "src/filter/error.hh"
 #include "src/filter/params.hh"
+#include "src/filter/util.hh"
 #include <memory>
-#include <vector>
 
 extern "C" {
 	#include <libavcodec/packet.h>
@@ -49,43 +48,56 @@ namespace vcat::filter {
 	};
 	static_assert(std::is_abstract<VFilter>());
 
-	class VideoFile : public VFilter {
-			inline VideoFile() {};
-		public:
-			void hash(vcat::Hasher& hasher) const;
-			std::string to_string() const;
-			std::string type_name() const;
-
-			std::unique_ptr<FrameSource> get_frames(Span, const VideoParameters&) const;
-
-			// NOTE: throws `std::string` upon IO failure
-			VideoFile(std::string&& path);
-
-		private:
-			uint8_t m_file_hash[32];
-			std::string m_path;
-	};
-	static_assert(!std::is_abstract<VideoFile>());
-
-	class Concat : public VFilter {
-		public:
-			Concat() = delete;
-			void hash(vcat::Hasher& hasher) const;
-			std::string to_string() const;
-			std::string type_name() const;
-
-			std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters& params) const;
-			std::unique_ptr<FrameSource>  get_frames(Span, const VideoParameters&) const;
-
-			constexpr Concat(std::vector<Spanned<const VFilter&>> videos, Span s) : m_videos(std::move(videos)) {
-				if(m_videos.empty()) {
-					throw error::expected_video_got_none(s);
-				}
-			}
-		private:
-			std::vector<Spanned<const VFilter&>> m_videos;
-	};
-	static_assert(!std::is_abstract<Concat>());
-
 	std::unique_ptr<PacketSource> encode(Span span, const VideoParameters& params, const VFilter& filter);
+
+	class VideoFilePktSource : public PacketSource {
+		private:
+			AVFormatContext *m_ctx;
+			Span                     m_span;
+			int64_t                  m_dts_start;
+			TsInfo                   m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
+			TsInfo                   m_pts_end_info; //< The pts and duration of the last video packet (pts-wise) in each stream
+			int64_t                  m_video_idx;
+			size_t                   m_pkt_no; //< The index of the current packet (starting at 0)
+
+			// Some formats (ie mkv) do not support negative DTS and instead use `AV_NOPTS_VALUE`. This value
+			// is used to reconstruct the negative DTS
+			uint64_t                 m_dts_jump;
+
+			util::VCatAVFile         m_file;
+		public:
+			VideoFilePktSource() = delete;
+
+			VideoFilePktSource(const std::string& path, Span span);
+			bool next_pkt(AVPacket **p_packet);
+			const AVCodecParameters *video_codec();
+			std::span<AVStream *> av_streams();
+			TsInfo dts_end_info() const;
+			int64_t dts_start() const;
+			TsInfo pts_end_info() const;
+
+			~VideoFilePktSource();
+
+			VideoFilePktSource(VideoFilePktSource&& old);
+
+		private:
+			// Walks through the file to calculate `m_dts_start`, `m_dts_end_info`, `m_pts_end_info`, and `video_idx`
+			//
+			// NOTE: this should be called before the main AVFormatContext is created.
+			void calculate_info(const std::string& path);
+	};
+
+	class Decode : public FrameSource {
+		public:
+			Decode(Span s, std::unique_ptr<PacketSource>&& packet_src, const VideoParameters& video_params);
+			bool next_frame(AVFrame **frame);
+			~Decode();
+
+		private:
+			Span                          m_span;
+			std::unique_ptr<PacketSource> m_packets;
+			AVCodecContext               *m_decoder;
+			util::Rescaler                m_rescaler;
+			AVPacket                     *m_pkt_buf;
+	};
 }
