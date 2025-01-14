@@ -71,6 +71,15 @@ namespace vcat::parser {
 		return e;
 	}
 
+	Expression Expression::let(std::vector<std::tuple<std::string, Spanned<Expression>>>&& variables, std::unique_ptr<Spanned<Expression>>&& expr) {
+		Expression e;
+
+		e.m_type = Type::Let;
+		new(&e.m_let) Let(std::move(variables), std::move(expr));
+
+		return e;
+	}
+
 	std::optional<std::string_view> Expression::as_variable() const {
 		if(m_type != Type::Variable) {
 			return std::optional<std::string_view>();
@@ -119,6 +128,14 @@ namespace vcat::parser {
 		return std::cref(m_set);
 	}
 
+	OptionalRef<const Let> Expression::as_let() const {
+		if(m_type != Type::Let) {
+			return {};
+		}
+
+		return std::cref(m_let);
+	}
+
 	Expression::~Expression() {
 		switch(m_type) {
 			case Type::Variable:
@@ -135,6 +152,8 @@ namespace vcat::parser {
 				m_field_access.~FieldAccess();     return;
 			case Type::Set:
 				m_set.~Set();                      return;
+			case Type::Let:
+				m_let.~Let();                      return;
 		}
 
 		std::abort(); // unreachable
@@ -164,6 +183,9 @@ namespace vcat::parser {
 				return;
 			case Type::Set:
 				new(&m_set) Set(std::move(old.m_set));
+				return;
+			case Type::Let:
+				new(&m_let) Let(std::move(old.m_let));
 				return;
 		}
 
@@ -244,6 +266,25 @@ namespace vcat::parser {
 		return std::move(s).str();
 	}
 
+	std::string Let::to_string() const {
+		std::stringstream s;
+
+		s << "Let {\n";
+		for(const auto& e: m_variables) {
+			s << indent(std::get<0>(e)+ " = " + std::get<1>(e)->to_string()) << ";\n";
+		}
+
+		if(!m_variables.empty()) {
+			s << '\n';
+		}
+
+		s << indent("in: " + m_expr->val.to_string()) << '\n';
+
+		s << "}";
+
+		return std::move(s).str();
+	}
+
 	std::string Expression::to_string() const {
 		switch(m_type) {
 			case Type::Variable:
@@ -260,6 +301,8 @@ namespace vcat::parser {
 				return m_field_access.to_string();
 			case Type::Set:
 				return m_set.to_string();
+			case Type::Let:
+				return m_let.to_string();
 		}
 
 		std::abort(); // unreachable

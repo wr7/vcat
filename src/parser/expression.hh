@@ -60,6 +60,17 @@ namespace vcat::parser {
 		std::vector<Spanned<Expression>>     m_args;
 	};
 
+	struct Let {
+		Let(Let&) = delete;
+		Let(Let&&) = default;
+
+		std::string to_string() const;
+		inline Let(std::vector<std::tuple<std::string, Spanned<Expression>>>&& variables, std::unique_ptr<Spanned<Expression>>&& expr);
+
+		std::vector<std::tuple<std::string, Spanned<Expression>>> m_variables;
+		std::unique_ptr<Spanned<Expression>>                      m_expr;
+	};
+
 	class Expression {
 		public:
 			static Expression variable(std::string&&);
@@ -69,6 +80,7 @@ namespace vcat::parser {
 			static Expression function_call(Spanned<Expression>&& function, std::vector<Spanned<Expression>>&& args);
 			static Expression field_access(Spanned<Expression>&& lhs, Spanned<std::string>&& rhs);
 			static Expression set(std::vector<Set::Entry>&& entries);
+			static Expression let(std::vector<std::tuple<std::string, Spanned<Expression>>>&& variables, std::unique_ptr<Spanned<Expression>>&& expr);
 
 			std::string to_string() const;
 
@@ -78,6 +90,7 @@ namespace vcat::parser {
 			OptionalRef<const List> as_list() const;
 			OptionalRef<const FunctionCall> as_function_call() const;
 			OptionalRef<const Set> as_set() const;
+			OptionalRef<const Let> as_let() const;
 
 			enum struct Type {
 				Variable,
@@ -87,6 +100,7 @@ namespace vcat::parser {
 				FunctionCall,
 				FieldAccess,
 				Set,
+				Let,
 			};
 
 			constexpr Type type() const {
@@ -108,6 +122,7 @@ namespace vcat::parser {
 				FunctionCall m_function_call;
 				FieldAccess  m_field_access;
 				Set          m_set;
+				Let          m_let;
 			};
 	};
 
@@ -134,4 +149,8 @@ namespace vcat::parser {
 
 	inline List::List(std::vector<Spanned<Expression>>&& elements)
 		: m_elements(std::move(elements)) {}
+
+	inline Let::Let(std::vector<std::tuple<std::string, Spanned<Expression>>>&& variables, std::unique_ptr<Spanned<Expression>>&& expr)
+		: m_variables(std::move(variables))
+		, m_expr(std::move(expr)) {}
 }

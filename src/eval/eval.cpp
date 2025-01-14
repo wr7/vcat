@@ -31,6 +31,8 @@ namespace vcat::eval {
 				throw; // unimplemented
 			case parser::Expression::Type::Set:
 				throw; // unimplemented
+			case parser::Expression::Type::Let:
+				throw; // unimplemented
 		}
 
 		throw;
