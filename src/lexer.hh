@@ -11,7 +11,11 @@
 namespace vcat {
 	class Lexer {
 		public:
-			constexpr inline Lexer(std::string_view src): m_src(src), m_remaining_idx(0) {}
+			constexpr inline Lexer(std::string_view src)
+				: m_src(src)
+				, m_remaining_idx(0)
+			{}
+
 			std::optional<Spanned<Token>> next();
 		private:
 			std::string_view m_src;
@@ -20,5 +24,6 @@ namespace vcat {
 			std::optional<Spanned<Token>> lex_symbol();
 			std::optional<Spanned<Token>> lex_ident_or_number();
 			std::optional<Spanned<Token>> lex_string();
+			void lex_comment();
 	};
 }

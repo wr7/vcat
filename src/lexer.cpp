@@ -16,7 +16,16 @@ namespace vcat {
 			char c = m_src[m_remaining_idx];
 
 			if(c <= ' ') {
+				// Skip whitespace
 				m_remaining_idx += 1;
+				continue;
+			}
+
+			if(c == '#') {
+				// Skip comment
+				while(m_remaining_idx < m_src.size() && m_src[m_remaining_idx] != '\n') {
+					m_remaining_idx++;
+				}
 				continue;
 			}
 
@@ -162,6 +171,5 @@ namespace vcat {
 
 		return Spanned(std::move(t), s);
 	}
-
 }
 
