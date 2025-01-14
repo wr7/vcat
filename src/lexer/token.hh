@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -36,7 +37,7 @@ namespace vcat {
 
 			Token(const Token& d) = delete;
 			Token(Token&& d);
-			~Token();
+			constexpr ~Token();
 
 			Type type() const;
 			bool operator==(const Token& rhs);
@@ -135,6 +136,20 @@ namespace vcat {
 		}
 
 		m_type = Type::Identifier;
-		m_identifier = s;
+		std::construct_at(&m_identifier, s);
 	};
+
+	constexpr Token::~Token() {
+		switch(m_type) {
+			case Type::OpeningBracket:
+			case Type::ClosingBracket:
+			case Type::Identifier:
+			case Type::Number:
+			case Type::Symbol:
+				break; // No destructor needed
+			case Type::String:
+				m_string.std::string::~string();
+				break;
+		}
+	}
 }

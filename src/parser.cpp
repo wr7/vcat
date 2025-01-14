@@ -3,11 +3,13 @@
 #include "src/parser/error.hh"
 #include "src/parser/expression.hh"
 #include "src/parser/util.hh"
+#include "src/util.hh"
 #include "src/parser.hh"
 
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>
+#include <memory>
 #include <span>
 #include <string>
 
@@ -51,6 +53,7 @@ namespace vcat::parser {
 			try_parse_number,
 			try_parse_string,
 			try_parse_parenthized_expression,
+			try_parse_let,
 			try_parse_function_call,
 			try_parse_set,
 			try_parse_list,
@@ -228,6 +231,104 @@ namespace vcat::parser {
 		assert(lhs);
 
 		return Expression::field_access(std::move(*lhs), Spanned(std::string(*rhs), rhs_span));
+	}
+
+	static std::vector<std::tuple<std::string, Spanned<Expression>>> parse_variable_list(TokenStream tokens);
+
+	std::optional<Expression> try_parse_let(TokenStream tokens) {
+		NonBracketed iter = tokens;
+
+		auto let = iter.next();
+		if(!let || *let->get() != Token("let")) {
+			return {};
+		}
+
+		OptionalRef<const Spanned<Token>> in;
+
+		while(auto tok_ref = iter.next()) {
+			const Spanned<Token>& tok = *tok_ref;
+			if(*tok == Token("in")) {
+				in.emplace(tok);
+				break;
+			}
+		}
+
+		if(!in) {
+			throw error::expected_in(let->get().span);
+		}
+
+		size_t in_idx = &in->get() - tokens.data();
+
+		TokenStream variable_tokens = tokens.subspan(1, in_idx - 1);
+
+		auto variable_list = parse_variable_list(variable_tokens);
+
+		TokenStream expr_tokens = tokens.subspan(in_idx + 1);
+
+		auto expr = try_parse_expression(expr_tokens);
+		if(!expr) {
+			throw error::expected_expression(in->get().span.span_after());
+		}
+
+		return Expression::let(std::move(variable_list), std::make_unique<Spanned<Expression>>(std::move(*expr)));
+	}
+
+	static std::tuple<std::string, Spanned<Expression>> parse_variable_declaration(TokenStream tokens) {
+		assert(!tokens.empty());
+
+		auto variable_name = tokens[0]->as_identifier();
+
+		if(!variable_name) {
+			throw error::expected_variable_name(tokens[0].as_cref());
+		}
+
+		if(tokens.size() < 2) {
+			throw error::expected_token(Token("="), tokens[0].span.span_after());
+		}
+
+		if(*tokens[1] != Token("=")) {
+			throw error::expected_token(Token("="), tokens[1].as_cref());
+		}
+
+		TokenStream rhs_toks = tokens.subspan(2);
+
+		auto rhs = try_parse_expression(rhs_toks);
+		if(!rhs) {
+			throw error::expected_expression(tokens[1].span.span_after());
+		}
+
+		return {std::string(*variable_name), std::move(*rhs)};
+	}
+
+	static std::vector<std::tuple<std::string, Spanned<Expression>>> parse_variable_list(TokenStream tokens) {
+		std::vector<std::tuple<std::string, Spanned<Expression>>> retval;
+
+		size_t variable_start = 0;
+
+		for(NonBracketed iter = tokens; auto tok_ref = iter.next();) {
+			const Spanned<Token>& tok = *tok_ref;
+
+			if(*tok != Token(";")) {
+				continue;
+			}
+
+			const size_t idx = &tok - tokens.data();
+
+			const TokenStream declaration_tokens = tokens.subspan(variable_start, idx - variable_start);
+
+			if(declaration_tokens.empty()) {
+				throw error::expected_variable_declaration(tok.span);
+			}
+
+			retval.push_back(parse_variable_declaration(declaration_tokens));
+			variable_start = idx + 1;
+		}
+
+		if(variable_start != tokens.size()) {
+			throw error::expected_token(Token(";"), tokens.back().span.span_after());
+		}
+
+		return retval;
 	}
 
 	static std::vector<Spanned<Expression>> parse_expression_list(TokenStream tokens) {

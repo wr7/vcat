@@ -62,6 +62,15 @@ namespace vcat::parser::error {
 		);
 	}
 
+	inline Diagnostic expected_variable_name(Spanned<const Token&> got) {
+		return Diagnostic(
+			std::format("Expected variable name (identifier); got `{}`", got->to_string()),
+			{
+				Hint::error("", got.span),
+			}
+		);
+	}
+
 	inline Diagnostic expected_token(const Token& expected, Spanned<const Token&> got) {
 		return Diagnostic(
 			std::format("Expected token `{}`; got `{}`", expected.to_string(), got->to_string()),
@@ -76,6 +85,24 @@ namespace vcat::parser::error {
 			std::format("Expected token `{}`", expected.to_string()),
 			{
 				Hint::error("", got)
+			}
+		);
+	}
+
+	inline Diagnostic expected_in(Span s) {
+		return Diagnostic(
+			"Expected `in` for `let` expression",
+			{
+				Hint::error("`let` here", s)
+			}
+		);
+	}
+
+	inline Diagnostic expected_variable_declaration(Span s) {
+		return Diagnostic(
+			"Expected variable declaration; got `;`",
+			{
+				Hint::error("", s)
 			}
 		);
 	}

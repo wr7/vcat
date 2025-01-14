@@ -140,20 +140,6 @@ namespace vcat {
 		return m_symbol;
 	}
 
-	Token::~Token() {
-		switch(m_type) {
-			case Type::OpeningBracket:
-			case Type::ClosingBracket:
-			case Type::Identifier:
-			case Type::Number:
-			case Type::Symbol:
-				break; // No destructor needed
-			case Type::String:
-				m_string.std::string::~string();
-				break;
-		}
-	}
-
 	Token::Token(Token &&d) {
 		m_type = d.m_type;
 
