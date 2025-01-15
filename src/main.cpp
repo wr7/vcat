@@ -19,7 +19,6 @@ using vcat::parser::Expression;
 
 // TODO:
 // - Audio support
-// - Variables
 // - Lambdas
 // - Attempt to re-use the same encoder
 // - Fixed frame rate support

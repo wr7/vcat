@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
+#include <string_view>
 #include <utility>
 
 extern "C" {
@@ -28,11 +29,11 @@ namespace vcat::eval {
 				return evaluate_list         (pool, scope, expr.map([](const auto& e) -> const auto& {return e.as_list()->get()         ;}));
 			case parser::Expression::Type::FunctionCall:
 				return evaluate_function_call(pool, scope, expr.map([](const auto& e) -> const auto& {return e.as_function_call()->get();}));
+			case parser::Expression::Type::Let:
+				return evaluate_let          (pool, scope, expr.map([](const auto& e) -> const auto& {return e.as_let()->get()          ;}));
 			case parser::Expression::Type::FieldAccess:
 				throw; // unimplemented
 			case parser::Expression::Type::Set:
-				throw; // unimplemented
-			case parser::Expression::Type::Let:
 				throw; // unimplemented
 		}
 
@@ -70,7 +71,7 @@ namespace vcat::eval {
 
 	const EObject& evaluate_variable(EObjectPool& pool, const Scope& scope, Spanned<std::string_view> expr) {
 		if(auto var = scope.get(*expr)) {
-			return **var;
+			return *var;
 		}
 		if(expr.val == "vopen") {
 			return pool.add<BuiltinFunction<builtins::vopen, "vopen">>();
@@ -96,5 +97,20 @@ namespace vcat::eval {
 
 		EList args = EList(std::move(args_v));
 		return lhs(pool, Spanned<const EList&>(args, call.span));
+	}
+
+	const EObject& evaluate_let(EObjectPool& pool, const Scope& scope, Spanned<const parser::Let&> let_expr) {
+		Scope new_scope(scope);
+
+		for(const auto& var : let_expr->m_variables) {
+			std::string_view var_name = std::get<0>(var);
+			Spanned<const parser::Expression&> var_expr = std::get<1>(var).as_cref();
+
+			const EObject& var_val = evaluate_expression(pool, new_scope, var_expr);
+
+			new_scope.add(std::string(var_name), var_val);
+		}
+
+		return evaluate_expression(pool, new_scope, let_expr->m_expr->as_cref());
 	}
 }

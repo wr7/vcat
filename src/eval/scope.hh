@@ -21,11 +21,11 @@ namespace vcat::eval {
 				: m_parent(parent)
 			{}
 
-			void add(std::string&& var_name, Spanned<const EObject&> value);
-			std::optional<Spanned<const EObject&>> get(std::string_view var_name) const;
+			void add(std::string&& var_name, const EObject& value);
+			OptionalRef<const EObject> get(std::string_view var_name) const;
 
 		private:
-			std::vector<std::tuple<std::string, Spanned<const EObject&>>> m_variables;
+			std::vector<std::tuple<std::string, const EObject&>> m_variables;
 			OptionalRef<const Scope> m_parent;
 	};
 }

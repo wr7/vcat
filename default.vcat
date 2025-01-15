@@ -1,5 +1,9 @@
+let
+  o = vopen;
+  v1 = o("prism.mp4");
+in
 concat(
-    vopen("prism.mp4"),
-    vopen("stripped.mp4"),
+    v1,
+    o("stripped.mp4"),
 )
 

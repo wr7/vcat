@@ -15,4 +15,5 @@ namespace vcat::eval {
 	const EObject& evaluate_variable(EObjectPool&, const Scope&, Spanned<std::string_view>);
 	const EObject& evaluate_number(EObjectPool&, Spanned<const std::string&>);
 	const EObject& evaluate_function_call(EObjectPool&, const Scope&, Spanned<const parser::FunctionCall&>);
+	const EObject& evaluate_let(EObjectPool&, const Scope&, Spanned<const parser::Let&>);
 }
