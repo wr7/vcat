@@ -32,6 +32,7 @@ source_files = [
  ,'src/eval/builtins.cpp'
  ,'src/eval/eobject.cpp'
  ,'src/eval/eval.cpp'
+ ,'src/eval/scope.cpp'
  ,'src/filter/concat.cpp'
  ,'src/filter/filter.cpp'
  ,'src/filter/params.cpp'

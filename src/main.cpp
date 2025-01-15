@@ -1,6 +1,7 @@
 #include "src/error.hh"
 #include "src/eval/eobject.hh"
 #include "src/eval/eval.hh"
+#include "src/eval/scope.hh"
 #include "src/lexer.hh"
 #include "src/lexer/token.hh"
 #include "src/muxing.hh"
@@ -22,6 +23,7 @@ using vcat::parser::Expression;
 // - Lambdas
 // - Attempt to re-use the same encoder
 // - Fixed frame rate support
+// - Fix token printing in error messages
 
 int main() {
 	const shared::Parameters params = shared::vcat_cli_parse();
@@ -45,7 +47,9 @@ int main() {
 		}
 
 		vcat::EObjectPool pool;
-		const vcat::EObject& object = vcat::eval::evaluate_expression(pool, expression->as_cref());
+		vcat::eval::Scope scope;
+
+		const vcat::EObject& object = vcat::eval::evaluate_expression(pool, scope, expression->as_cref());
 		std::cout << object.to_string() << "\n";
 		vcat::Hasher hasher;
 
