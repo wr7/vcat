@@ -1,6 +1,7 @@
 #include <format>
 #include <iomanip>
 #include <fstream>
+#include <iostream>
 
 #include "src/filter/video_file.hh"
 #include "src/constants.hh"
@@ -215,10 +216,19 @@ namespace vcat::filter {
 				}
 
 				if(pkt->dts >= m_dts_end_info.ts) {
-					TsInfo& packet_info = m_dts_end_info;
+					m_dts_end_info.duration = pkt->duration;
 
-					packet_info.ts = pkt->dts;
-					packet_info.duration = pkt->duration;
+					// Some formats do not include a duration for packets
+					// FFMPEG will signal an unknown duration with `0`
+					if(m_dts_end_info.duration == 0) {
+						m_dts_end_info.duration = pkt->dts - m_dts_end_info.ts;
+					}
+
+					if(m_dts_end_info.duration == 0) {
+						m_dts_end_info.duration = constants::FALLBACK_FRAME_RATE;
+					}
+
+					m_dts_end_info.ts = pkt->dts;
 				}
 
 				if(pkt->dts < m_dts_start) {
@@ -226,10 +236,17 @@ namespace vcat::filter {
 				}
 
 				if(pkt->pts >= m_pts_end_info.ts) {
-					TsInfo& packet_info = m_pts_end_info;
+					m_pts_end_info.duration = pkt->duration;
 
-					packet_info.ts = pkt->pts;
-					packet_info.duration = pkt->duration;
+					if(m_pts_end_info.duration == 0) {
+						m_pts_end_info.duration = pkt->pts - m_pts_end_info.ts;
+					}
+
+					if(m_pts_end_info.duration == 0) {
+						m_pts_end_info.duration = constants::FALLBACK_FRAME_RATE;
+					}
+
+					m_pts_end_info.ts = pkt->pts;
 				}
 			}
 

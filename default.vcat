@@ -1,9 +1,8 @@
 let
   o = vopen;
-  v1 = o("prism.mp4");
 in
 concat(
-    v1,
+    o("prism.mp4"),
     o("stripped.mp4"),
 )
 
