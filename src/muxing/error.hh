@@ -26,7 +26,7 @@ namespace vcat::muxing::error {
 
 			av_strerror(err_code, msg, sizeof(msg));
 
-			std::cerr << "Failed to write to output file `output.mkv`: " << &*msg;
+			std::cerr << "Failed to write to output file `output.mp4`: " << &*msg;
 
 			std::abort();
 		}

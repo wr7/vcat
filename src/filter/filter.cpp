@@ -101,13 +101,13 @@ namespace vcat::filter {
 			throw error::failed_cache_directory(span, e.what());
 		}
 
-		std::string cached_name = "./vcat-cache/" + hash + ".mkv";
+		std::string cached_name = "./vcat-cache/" + hash + ".mp4";
 
 		if(std::filesystem::exists(cached_name)) {
 			return std::make_unique<VideoFilePktSource>(cached_name, span);
 		}
 
-		std::string tmp_cached_name = "./vcat-cache/~" + hash + ".mkv";
+		std::string tmp_cached_name = "./vcat-cache/~" + hash + ".mp4";
 
 		AVFormatContext *output = nullptr;
 		error::handle_ffmpeg_error(span,
@@ -146,10 +146,17 @@ namespace vcat::filter {
 
 		std::unique_ptr<FrameSource> frames = filter.get_frames(span, params);
 
+		AVBufferPool *buffer_pool = av_buffer_pool_init(sizeof(int64_t), nullptr);
+
 		int res;
 		while((res = avcodec_receive_packet(encoder, packet)) != AVERROR_EOF) {
 			if(res == AVERROR(EAGAIN)) {
 				if(frames->next_frame(&frame)) {
+					assert(frame->duration);
+
+					frame->opaque_ref = av_buffer_pool_get(buffer_pool);
+					*reinterpret_cast<int64_t *>(frame->opaque_ref->data) = frame->duration;
+
 					error::handle_ffmpeg_error(span,
 						avcodec_send_frame(encoder, frame)
 					);
@@ -166,6 +173,11 @@ namespace vcat::filter {
 
 			packet->pos = -1;
 			packet->stream_index = 0;
+			// The x264 encoder will not fill in the packet duration
+			// We must do that ourselves
+			if(packet->opaque_ref && !packet->duration) {
+				packet->duration = *reinterpret_cast<int64_t *>(packet->opaque_ref->data);
+			}
 
 			av_packet_rescale_ts(packet, constants::TIMEBASE, ostream->time_base);
 
@@ -174,12 +186,16 @@ namespace vcat::filter {
 			av_packet_unref(packet);
 		}
 
+		av_buffer_pool_uninit(&buffer_pool);
+
 		error::handle_ffmpeg_error(span,
 			av_write_trailer(output)
 		);
 
 		av_packet_free(&packet);
 		av_frame_free(&frame);
+
+		avcodec_free_context(&encoder);
 
 		if (!(output->oformat->flags & AVFMT_NOFILE)) {
 			error::handle_ffmpeg_error(span,

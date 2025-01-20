@@ -175,7 +175,7 @@ namespace vcat::filter::util {
 		encode_ctx->time_base = constants::TIMEBASE;
 		encode_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
 
-		encode_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+		encode_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER | AV_CODEC_FLAG_COPY_OPAQUE;
 
 		avcodec_open2(encode_ctx, av_encoder, nullptr);
 

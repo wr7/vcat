@@ -43,6 +43,7 @@ namespace vcat::muxing {
 		);
 
 		AVStream *ostream = avformat_new_stream(output, nullptr);
+		ostream->time_base = constants::TIMEBASE;
 
 		error::handle_ffmpeg_error(
 			ostream ? 0 : AVERROR_UNKNOWN
