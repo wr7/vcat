@@ -1,12 +1,18 @@
+#include <cstdint>
 #include <format>
 #include <iomanip>
 #include <fstream>
 #include <iostream>
+#include <limits>
 
 #include "src/filter/video_file.hh"
+#include "libavcodec/packet.h"
+#include "libavutil/avutil.h"
 #include "src/constants.hh"
 #include "src/filter/error.hh"
+#include "src/filter/filter.hh"
 #include "src/filter/util.hh"
+#include "src/util.hh"
 
 namespace vcat::filter {
 	void VideoFile::hash(Hasher& hasher) const {
@@ -56,8 +62,9 @@ namespace vcat::filter {
 	VideoFilePktSource::VideoFilePktSource(const std::string& path, Span span)
 		: m_ctx(avformat_alloc_context())
 		, m_span(span)
+		, m_dts_start(0)
+		, m_dts_end_info({.ts = 0, .duration = 0})
 		, m_pkt_no(0)
-		, m_dts_jump(0)
 		, m_file()
 	{
 		errno = 0;
@@ -99,9 +106,16 @@ namespace vcat::filter {
 
 		av_packet_rescale_ts(packet, old_timebase, constants::TIMEBASE);
 
-		if(packet->dts == AV_NOPTS_VALUE) {
-			packet->dts = m_dts_start + m_pkt_no * m_dts_jump;
-		}
+		const int64_t pts = packet->pts;
+		const auto bsr = binary_search_by(std::span(m_ts_info), [pts](const auto& inf){return inf.pts <=> pts;});
+
+		assert(bsr.first);
+		const PacketTimestampInfo pti = m_ts_info[bsr.second];
+
+		packet->dts = pti.dts;
+		packet->duration = pti.duration;
+
+		assert(packet->dts != AV_NOPTS_VALUE);
 
 		m_pkt_no += 1;
 		return true;
@@ -124,7 +138,12 @@ namespace vcat::filter {
 	}
 
 	TsInfo VideoFilePktSource::pts_end_info() const {
-		return m_pts_end_info;
+		auto pkt_info = m_ts_info.back();
+
+		return TsInfo {
+			.ts = pkt_info.pts,
+			.duration = pkt_info.duration
+		};
 	}
 
 	VideoFilePktSource::~VideoFilePktSource() {
@@ -137,10 +156,13 @@ namespace vcat::filter {
 		: m_ctx(old.m_ctx)
 		, m_span(old.m_span)
 		, m_pkt_no(old.m_pkt_no)
-		, m_dts_jump(old.m_dts_jump)
+		, m_file(std::move(old.m_file))
 	{
 		old.m_ctx = nullptr;
 	}
+
+	static void calculate_packet_duration(std::span<vcat::filter::PacketTimestampInfo> ts_info);
+	static void calculate_packet_dts(std::span<vcat::filter::PacketTimestampInfo> ts_info, TsInfo& dts_end_info, int64_t& dts_start);
 
 	// Walks through the file to calculate `m_dts_start`, `m_dts_end_info`, `m_pts_end_info`, and `video_idx`
 	//
@@ -171,97 +193,48 @@ namespace vcat::filter {
 			throw error::no_video(m_span, path);
 		}
 
-		std::optional<int64_t> first_defined_dts = {};
-		int64_t num_undef_dts = 0;
-
-		m_dts_end_info = {0, 0};
-		m_pts_end_info = {0, 0};
-		m_dts_start = 0;
-
 		AVPacket *pkt = av_packet_alloc();
 
+		size_t decode_idx = 0;
 		while(int res = av_read_frame(ctx, pkt) != AVERROR_EOF) {
-			error::handle_ffmpeg_error(m_span, res);
+			error::handle_ffmpeg_error(m_span,res);
 
-			if(pkt->stream_index == m_video_idx) {
-				av_packet_rescale_ts(pkt, ctx->streams[pkt->stream_index]->time_base, constants::TIMEBASE);
-
-				// Some formats (ie mkv) do not support negative DTS and instead use `AV_NOPTS_VALUE`
-				//
-				// Some of vcat's filters do not like this, so we need to manually reconstruct the DTS. That's
-				// what this information is for.
-				if(!first_defined_dts) {
-					if(pkt->dts == AV_NOPTS_VALUE) {
-						num_undef_dts++;
-						continue;
-					} else {
-						// It would be genuinely insane if a file with this property did not start with a DTS of
-						// zero, but we will handle this case anyway
-						first_defined_dts = pkt->dts;
-
-						if(pkt->duration > 0) {
-							m_dts_jump = pkt->duration;
-						} else {
-							m_dts_jump = constants::FALLBACK_FRAME_RATE; // If worst comes to worst, we will just fall back to 60Hz
-						}
-					}
-				}
-
-				if(pkt->dts == AV_NOPTS_VALUE) {
-					throw error::no_dts(m_span);
-				}
-
-				if(pkt->pts == AV_NOPTS_VALUE) {
-					throw error::no_pts(m_span);
-				}
-
-				if(pkt->dts >= m_dts_end_info.ts) {
-					m_dts_end_info.duration = pkt->duration;
-
-					// Some formats do not include a duration for packets
-					// FFMPEG will signal an unknown duration with `0`
-					if(m_dts_end_info.duration == 0) {
-						m_dts_end_info.duration = pkt->dts - m_dts_end_info.ts;
-					}
-
-					if(m_dts_end_info.duration == 0) {
-						m_dts_end_info.duration = constants::FALLBACK_FRAME_RATE;
-					}
-
-					m_dts_end_info.ts = pkt->dts;
-				}
-
-				if(pkt->dts < m_dts_start) {
-					m_dts_start = pkt->dts;
-				}
-
-				if(pkt->pts >= m_pts_end_info.ts) {
-					m_pts_end_info.duration = pkt->duration;
-
-					if(m_pts_end_info.duration == 0) {
-						m_pts_end_info.duration = pkt->pts - m_pts_end_info.ts;
-					}
-
-					if(m_pts_end_info.duration == 0) {
-						m_pts_end_info.duration = constants::FALLBACK_FRAME_RATE;
-					}
-
-					m_pts_end_info.ts = pkt->pts;
-				}
+			if(pkt->stream_index != m_video_idx) {
+				continue;
 			}
 
-			av_packet_unref(pkt);
-		}
-
-		if(num_undef_dts > 0) {
-			if(!first_defined_dts) {
-				throw error::no_dts(m_span);
+			if(pkt->pts < 0) {
+				throw error::no_pts(m_span);
 			}
 
-			m_dts_start = *first_defined_dts - num_undef_dts * m_dts_jump;
+			const int64_t old_pts = pkt->pts;
+
+			av_packet_rescale_ts(pkt, ctx->streams[m_video_idx]->time_base, constants::TIMEBASE);
+
+			const int64_t                 pts = pkt->pts;
+			const std::pair<bool, size_t> bsr = binary_search_by(std::span(m_ts_info), [pts](const auto& t) {return t.pts <=> pts;});
+			const bool                    found = bsr.first;
+			const size_t                  idx = bsr.second;
+
+			if(found) {
+				throw error::duplicate_pts(m_span, old_pts);
+			}
+
+			m_ts_info.insert(m_ts_info.begin() + idx, {
+				.pts = pkt->pts,
+				.dts = pkt->dts,
+				.duration = pkt->duration,
+				.decode_idx = decode_idx,
+			});
+
+			decode_idx++;
 		}
 
 		av_packet_free(&pkt);
+
+		calculate_packet_duration(m_ts_info);
+		calculate_packet_dts(m_ts_info,m_dts_end_info, m_dts_start);
+
 		avformat_close_input(&ctx);
 
 		m_file.reset();
@@ -273,5 +246,60 @@ namespace vcat::filter {
 			std::make_unique<VideoFilePktSource>(m_path, span),
 			params
 		);
+	}
+
+	static void calculate_packet_duration(std::span<vcat::filter::PacketTimestampInfo> ts_info) {
+		for(size_t i = 0; i < ts_info.size(); i++) {
+			if(i + 1 < ts_info.size()) {
+				ts_info[i].duration = ts_info[i + 1].pts - ts_info[i].pts;
+			}
+
+			if(ts_info[i].duration <= 0 && i > 0) {
+				ts_info[i].duration = ts_info[i - 1].duration;
+			}
+
+			if(ts_info[i].duration <= 0) {
+				ts_info[i].duration = constants::FALLBACK_FRAME_RATE;
+			}
+		}
+	}
+
+	static void calculate_packet_dts(std::span<vcat::filter::PacketTimestampInfo> ts_info, TsInfo& dts_end_info, int64_t& dts_start) {
+		if(ts_info.empty()) {
+			return;
+		}
+
+		size_t shift_amnt = 0;
+
+		for(size_t i = 0; i < ts_info.size(); i++) {
+			if(ts_info[i].decode_idx <= i) {
+				continue;
+			}
+
+			const size_t diff = ts_info[i].decode_idx - i;
+			shift_amnt = diff > shift_amnt ? diff : shift_amnt;
+		}
+
+		dts_end_info.ts = std::numeric_limits<int64_t>::min();
+		dts_start = std::numeric_limits<int64_t>::max();
+
+		for(auto& info : ts_info) {
+			const size_t idx = info.decode_idx;
+
+			if(idx >= shift_amnt) {
+				info.dts = ts_info[idx - shift_amnt].pts;
+			} else {
+				int64_t nds = static_cast<int64_t>(shift_amnt - idx);
+
+				info.dts = (-nds) * ts_info[0].duration;
+			}
+
+			dts_start = std::min(dts_start, info.dts);
+
+			if(info.dts > dts_end_info.ts) {
+				dts_end_info.ts = info.dts;
+				dts_end_info.duration = info.duration;
+			}
+		}
 	}
 }

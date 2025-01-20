@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <bit>
 #include <cassert>
+#include <compare>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -226,4 +228,48 @@ namespace vcat {
 				T m_inner;
 			};
 	};
+
+	/// Performs a binary search using a provided function.
+	///
+	/// The provided function should return an `std::strong_ordering` denoting whether the provided
+	/// value is less than, equal to, or greater than the desired value.
+	///
+	/// If `true` is returned, the index of the element is returned.
+	///
+	/// Otherwise, the index of where the element should be inserted is returned.
+	template<typename T, typename F>
+	requires requires(F f, T& p, int& r) {
+		{f(std::forward<T&>(p))} -> std::same_as<std::strong_ordering>;
+	}
+	std::pair<bool, size_t> binary_search_by(std::span<T> slice, F f) {
+		if(slice.empty()) {
+			return {false, 0};
+		}
+
+		size_t size = slice.size();
+		size_t base = 0;
+
+		while(size > 1) {
+			const size_t mid = base + size / 2;
+
+			auto res = f(std::forward<T&>(slice[mid]));
+
+			base = res > 0 ? base : mid;
+
+			size -= size/2;
+		}
+
+		auto res = f(std::forward<T&>(slice[base]));
+
+		if(res == 0) {
+			return {true, base};
+		} else {
+			return {false, base + (res < 0)};
+		}
+	}
+
+	template<std::unsigned_integral A, std::integral B>
+	auto saturating_sub(A a, B b) {
+		return (a >= b) ? (a - b) : 0;
+	}
 }

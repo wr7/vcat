@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/error.hh"
+#include <cstdint>
 #include <cstring>
 #include <format>
 #include <string_view>
@@ -26,6 +27,15 @@ namespace vcat::filter::error {
 	inline Diagnostic expected_video_got_none(Span s) {
 		return Diagnostic(
 			"Expected video parameter; got none",
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
+	inline Diagnostic duplicate_pts(Span s, int64_t pts) {
+		return Diagnostic(
+			std::format("Multiple packets found with pts `{}`", pts),
 			{
 				Hint::error("", s)
 			}

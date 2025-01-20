@@ -3,6 +3,5 @@ let
 in
 concat(
     o("prism.mp4"),
-    o("stripped.mp4"),
+    o("stripped.mp4")
 )
-

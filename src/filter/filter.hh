@@ -5,6 +5,7 @@
 #include "src/filter/params.hh"
 #include "src/filter/util.hh"
 #include <memory>
+#include <vector>
 
 extern "C" {
 	#include <libavcodec/packet.h>
@@ -50,19 +51,23 @@ namespace vcat::filter {
 
 	std::unique_ptr<PacketSource> encode(Span span, const VideoParameters& params, const VFilter& filter);
 
+	struct PacketTimestampInfo {
+		int64_t pts;
+		int64_t dts;
+		int64_t duration;
+		size_t  decode_idx;
+	};
+
 	class VideoFilePktSource : public PacketSource {
 		private:
 			AVFormatContext *m_ctx;
-			Span                     m_span;
-			int64_t                  m_dts_start;
-			TsInfo                   m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
-			TsInfo                   m_pts_end_info; //< The pts and duration of the last video packet (pts-wise) in each stream
-			int64_t                  m_video_idx;
-			size_t                   m_pkt_no; //< The index of the current packet (starting at 0)
+			Span             m_span;
+			int64_t          m_dts_start;
+			TsInfo           m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
+			int64_t          m_video_idx;
+			size_t           m_pkt_no; //< The index of the current packet (starting at 0)
 
-			// Some formats (ie mkv) do not support negative DTS and instead use `AV_NOPTS_VALUE`. This value
-			// is used to reconstruct the negative DTS
-			uint64_t                 m_dts_jump;
+			std::vector<PacketTimestampInfo> m_ts_info;
 
 			util::VCatAVFile         m_file;
 		public:

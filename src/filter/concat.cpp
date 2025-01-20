@@ -77,12 +77,8 @@ namespace vcat::filter {
 
 				frame->pts += m_pts_offset;
 
-				if(frame->duration != 0) {
-					m_last_dur = frame->duration;
-				} else {
-					assert(frame->pts >= m_last_pts);
-					m_last_dur = frame->pts - m_last_pts;
-				}
+				assert(frame->duration != 0);
+				m_last_dur = frame->duration;
 
 				m_last_pts = frame->pts;
 
