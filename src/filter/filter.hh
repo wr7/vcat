@@ -36,8 +36,8 @@ namespace vcat::filter {
 			// A double pointer is used to allow for more efficient 'look-ahead' buffers for filters
 			virtual bool next_pkt(AVPacket **packet) = 0;
 			virtual const AVCodecParameters *video_codec() = 0;
-			virtual TsInfo  dts_end_info() const = 0;
-			virtual int64_t dts_start() const = 0;
+			virtual int64_t first_pkt_duration() const = 0;
+			virtual size_t  dts_shift() const = 0;
 			virtual TsInfo  pts_end_info() const = 0;
 			virtual ~PacketSource() = default;
 	};
@@ -62,8 +62,7 @@ namespace vcat::filter {
 		private:
 			AVFormatContext *m_ctx;
 			Span             m_span;
-			int64_t          m_dts_start;
-			TsInfo           m_dts_end_info; //< The dts and duration of the last video packet (dts-wise) in each stream
+			size_t           m_dts_shift;
 			int64_t          m_video_idx;
 			size_t           m_pkt_no; //< The index of the current packet (starting at 0)
 
@@ -77,16 +76,16 @@ namespace vcat::filter {
 			bool next_pkt(AVPacket **p_packet);
 			const AVCodecParameters *video_codec();
 			std::span<AVStream *> av_streams();
-			TsInfo dts_end_info() const;
-			int64_t dts_start() const;
-			TsInfo pts_end_info() const;
+			int64_t first_pkt_duration() const;
+			size_t  dts_shift() const;
+			TsInfo  pts_end_info() const;
 
 			~VideoFilePktSource();
 
 			VideoFilePktSource(VideoFilePktSource&& old);
 
 		private:
-			// Walks through the file to calculate `m_dts_start`, `m_dts_end_info`, `m_pts_end_info`, and `video_idx`
+			// Walks through the file to calculate `m_dts_shift`, `m_pts_end_info`, and `video_idx`
 			//
 			// NOTE: this should be called before the main AVFormatContext is created.
 			void calculate_info(const std::string& path);

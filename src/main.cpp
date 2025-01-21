@@ -24,7 +24,6 @@ using vcat::parser::Expression;
 // - Fixed frame rate support
 // - Fix token printing in error messages
 // - Fix transcoded packet duration
-// - Make lossless filters use new dts scheme
 
 int main() {
 	const shared::Parameters params = shared::vcat_cli_parse();

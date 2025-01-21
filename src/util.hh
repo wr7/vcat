@@ -268,6 +268,16 @@ namespace vcat {
 		}
 	}
 
+	/// Performs a binary search.
+	///
+	/// If `true` is returned, the index of the element is returned.
+	///
+	/// Otherwise, the index of where the element should be inserted is returned.
+	template<std::integral T>
+	std::pair<bool, size_t> binary_search(std::span<T> slice, T val) {
+		return binary_search_by(slice, [val](const auto& v){return v <=> val;});
+	}
+
 	template<std::unsigned_integral A, std::integral B>
 	auto saturating_sub(A a, B b) {
 		return (a >= b) ? (a - b) : 0;

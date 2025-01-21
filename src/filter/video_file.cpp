@@ -3,7 +3,6 @@
 #include <iomanip>
 #include <fstream>
 #include <iostream>
-#include <limits>
 
 #include "src/filter/video_file.hh"
 #include "libavcodec/packet.h"
@@ -62,8 +61,7 @@ namespace vcat::filter {
 	VideoFilePktSource::VideoFilePktSource(const std::string& path, Span span)
 		: m_ctx(avformat_alloc_context())
 		, m_span(span)
-		, m_dts_start(0)
-		, m_dts_end_info({.ts = 0, .duration = 0})
+		, m_dts_shift(0)
 		, m_pkt_no(0)
 		, m_file()
 	{
@@ -129,12 +127,12 @@ namespace vcat::filter {
 		return std::span<AVStream *>(m_ctx->streams, m_ctx->nb_streams);
 	}
 
-	TsInfo VideoFilePktSource::dts_end_info() const {
-		return m_dts_end_info;
+	int64_t VideoFilePktSource::first_pkt_duration() const {
+		return m_ts_info[0].duration;
 	}
 
-	int64_t VideoFilePktSource::dts_start() const {
-		return m_dts_start;
+	size_t VideoFilePktSource::dts_shift() const {
+		return m_dts_shift;
 	}
 
 	TsInfo VideoFilePktSource::pts_end_info() const {
@@ -162,7 +160,7 @@ namespace vcat::filter {
 	}
 
 	static void calculate_packet_duration(std::span<vcat::filter::PacketTimestampInfo> ts_info);
-	static void calculate_packet_dts(std::span<vcat::filter::PacketTimestampInfo> ts_info, TsInfo& dts_end_info, int64_t& dts_start);
+	static void calculate_packet_dts(std::span<vcat::filter::PacketTimestampInfo> ts_info, size_t& dts_shift);
 
 	// Walks through the file to calculate `m_dts_start`, `m_dts_end_info`, `m_pts_end_info`, and `video_idx`
 	//
@@ -233,7 +231,7 @@ namespace vcat::filter {
 		av_packet_free(&pkt);
 
 		calculate_packet_duration(m_ts_info);
-		calculate_packet_dts(m_ts_info,m_dts_end_info, m_dts_start);
+		calculate_packet_dts(m_ts_info, m_dts_shift);
 
 		avformat_close_input(&ctx);
 
@@ -264,12 +262,12 @@ namespace vcat::filter {
 		}
 	}
 
-	static void calculate_packet_dts(std::span<vcat::filter::PacketTimestampInfo> ts_info, TsInfo& dts_end_info, int64_t& dts_start) {
+	static void calculate_packet_dts(std::span<vcat::filter::PacketTimestampInfo> ts_info, size_t& dts_shift) {
 		if(ts_info.empty()) {
 			return;
 		}
 
-		size_t shift_amnt = 0;
+		dts_shift = 0;
 
 		for(size_t i = 0; i < ts_info.size(); i++) {
 			if(ts_info[i].decode_idx <= i) {
@@ -277,28 +275,18 @@ namespace vcat::filter {
 			}
 
 			const size_t diff = ts_info[i].decode_idx - i;
-			shift_amnt = diff > shift_amnt ? diff : shift_amnt;
+			dts_shift = std::max(diff, dts_shift);
 		}
-
-		dts_end_info.ts = std::numeric_limits<int64_t>::min();
-		dts_start = std::numeric_limits<int64_t>::max();
 
 		for(auto& info : ts_info) {
 			const size_t idx = info.decode_idx;
 
-			if(idx >= shift_amnt) {
-				info.dts = ts_info[idx - shift_amnt].pts;
+			if(idx >= dts_shift) {
+				info.dts = ts_info[idx - dts_shift].pts;
 			} else {
-				int64_t nds = static_cast<int64_t>(shift_amnt - idx);
+				int64_t nds = static_cast<int64_t>(dts_shift - idx);
 
 				info.dts = (-nds) * ts_info[0].duration;
-			}
-
-			dts_start = std::min(dts_start, info.dts);
-
-			if(info.dts > dts_end_info.ts) {
-				dts_end_info.ts = info.dts;
-				dts_end_info.duration = info.duration;
 			}
 		}
 	}
