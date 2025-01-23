@@ -22,7 +22,6 @@ using vcat::parser::Expression;
 // - Lambdas
 // - Attempt to re-use the same encoder
 // - Fixed frame rate support
-// - Fix token printing in error messages
 // - Fix transcoded packet duration
 
 int main() {

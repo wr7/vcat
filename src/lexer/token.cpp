@@ -1,7 +1,9 @@
 #include "src/lexer/token.hh"
 
 #include <format>
+#include <iomanip>
 #include <optional>
+#include <sstream>
 #include <string_view>
 
 namespace vcat {
@@ -20,14 +22,27 @@ namespace vcat {
 		throw; // unreachable
 	}
 
-	static std::string_view BracketType_to_str(BracketType ty) {
+	static std::string_view BracketType_closing(BracketType ty) {
 		switch(ty) {
 			case BracketType::Parenthesis:
-				return "Parenthesis";
+				return ")";
 			case BracketType::Square:
-				return "Square";
+				return "]";
 			case BracketType::Curly:
-				return "Curly";
+				return "}";
+		}
+
+		throw; // unreachable
+	}
+
+	static std::string_view BracketType_opening(BracketType ty) {
+		switch(ty) {
+			case BracketType::Parenthesis:
+				return "(";
+			case BracketType::Square:
+				return "[";
+			case BracketType::Curly:
+				return "{";
 		}
 
 		throw; // unreachable
@@ -36,17 +51,17 @@ namespace vcat {
 	std::string Token::to_string() const {
 		switch(m_type) {
 			case Type::OpeningBracket:
-				return std::format("OpeningBracket({})", BracketType_to_str(m_bracket_type));
+				return std::format("{}", BracketType_opening(m_bracket_type));
 			case Type::ClosingBracket:
-				return std::format("ClosingBracket({})", BracketType_to_str(m_bracket_type));
+				return std::format("{}", BracketType_closing(m_bracket_type));
 			case Type::Identifier:
-				return std::format("Identifier({})", m_identifier);
+				return std::format("{}", m_identifier);
 			case Type::Number:
-				return std::format("Number({})", m_number);
+				return std::format("{}", m_number);
 			case Type::String:
-				return std::format("String({})", m_string);
+				return (std::stringstream() << std::quoted(m_string)).str();
 			case Type::Symbol:
-				return std::format("Symbol({})", SymbolType_to_str(m_symbol));
+				return std::format("{}", SymbolType_to_str(m_symbol));
 		}
 
 		std::abort(); // unreachable
