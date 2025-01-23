@@ -260,43 +260,6 @@ namespace vcat::filter::util {
 		}
 	}
 
-	int transcode_receive_packet(AVCodecContext *decoder, AVCodecContext *encoder, AVFrame **frame_buf, AVPacket *packet) {
-		if(!*frame_buf) {
-			*frame_buf = av_frame_alloc();
-			if(!frame_buf) {
-				return AVERROR_UNKNOWN;
-			}
-		}
-
-		AVFrame *frame = *frame_buf;
-
-		for(;;) {
-			int ret = avcodec_receive_packet(encoder, packet);
-			if(ret == 0) {
-				return 0;
-			} else if(ret != AVERROR(EAGAIN)) {
-				return ret;
-			}
-
-			ret = avcodec_receive_frame(decoder, frame);
-			if(ret == AVERROR_EOF) {
-				avcodec_send_frame(encoder, nullptr);
-				continue;
-			} else if(ret) {
-				return ret;
-			}
-
-			ret = avcodec_send_frame(encoder, frame);
-			assert(ret != AVERROR(EAGAIN));
-			if(ret) {
-				av_frame_unref(frame);
-				return ret;
-			}
-
-			av_frame_unref(frame);
-		}
-	}
-
 	static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
 		FILE *file = (FILE *) opaque;
 

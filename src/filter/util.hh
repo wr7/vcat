@@ -32,13 +32,6 @@ namespace vcat::filter::util {
 
 	void hash_avcodec_params(Hasher& hasher, const AVCodecParameters& p, Span s);
 
-	// Convenience function for receiving packets through a decoder + encoder chain.
-	//
-	// The return value is the same as the `avcodec_receive_*` functions
-	//
-	// If a pointer to `NULL` is passed in to `frame_buf`, a new `AVFrame` will be allocated.
-	int transcode_receive_packet(AVCodecContext *decoder, AVCodecContext *encoder, AVFrame **frame_buf, AVPacket *packet);
-
 	// Gets the next packet in a stream. Returns `false` if the stream is empty.
 	bool read_packet_from_stream(Span span, AVFormatContext *ctx, int stream_idx, AVPacket *packet);
 
