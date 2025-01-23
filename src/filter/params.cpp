@@ -8,6 +8,8 @@ namespace vcat::filter {
 
 		hasher.add(width);
 		hasher.add(height);
+		hasher.add(fixed_fps);
+		hasher.add((int64_t) fps);
 
 		hasher.add(static_cast<uint64_t>(hasher.pos() - start));
 	}

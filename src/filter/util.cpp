@@ -325,63 +325,10 @@ namespace vcat::filter::util {
 		}
 	}
 
-	FrameInfo::FrameInfo(const AVCodecContext *decoder)
+	FrameInfo::FrameInfo(const AVCodecParameters *decoder)
 		: width(decoder->width)
 		, height(decoder->height)
-		, pix_fmt(decoder->pix_fmt)
+		, pix_fmt(static_cast<AVPixelFormat>(decoder->format))
 		, sar(decoder->sample_aspect_ratio)
 	{}
-	
-
-	Rescaler::Rescaler(Span span, const FrameInfo& info, const VideoParameters& output)
-	: m_span(span)
-	, m_input(nullptr)
-	, m_output(nullptr)
-	, m_filter_graph(nullptr)
-	{
-		if(
-			info.width   == output.width            &&
-			info.height  == output.height           &&
-			info.pix_fmt == constants::PIXEL_FORMAT &&
-			av_cmp_q(info.sar, constants::SAMPLE_ASPECT_RATIO) == 0
-		) {
-			return;
-		}
-
-		m_filter_graph = create_filtergraph(
-			m_span,
-			std::format(
-				"format={},"
-				"scale={}:{}:force_original_aspect_ratio=decrease,"
-				"pad={}:{}:-1:-1",
-				static_cast<int>(constants::PIXEL_FORMAT),
-				output.width,
-				output.height,
-				output.width,
-				output.height
-			).c_str(),
-			info,
-			&m_input,
-			&m_output
-		);
-	}
-
-	void Rescaler::rescale(AVFrame *frame) const {
-		if(!m_filter_graph) {
-			return;
-		}
-
-		error::handle_ffmpeg_error(m_span,
-			av_buffersrc_add_frame(m_input, frame)
-		);
-
-		error::handle_ffmpeg_error(m_span,
-			av_buffersink_get_frame(m_output, frame)
-		);
-	}
-	
-
-	Rescaler::~Rescaler() {
-		avfilter_graph_free(&m_filter_graph);
-	}
 }

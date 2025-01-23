@@ -20,7 +20,7 @@ namespace vcat::filter::util {
 	AVCodecContext *create_encoder(Span span, const VideoParameters& params);
 
 	struct FrameInfo {
-		FrameInfo(const AVCodecContext *);
+		FrameInfo(const AVCodecParameters*);
 
 		int           width;
 		int           height;
@@ -57,22 +57,5 @@ namespace vcat::filter::util {
 			~VCatAVFile();
 		private:
 			AVIOContext *m_ctx;
-	};
-
-	class Rescaler {
-		public:
-			Rescaler() = delete;
-			Rescaler(Span span, const FrameInfo& info, const VideoParameters& output);
-
-			void rescale(AVFrame *frame) const;
-
-			~Rescaler();
-		private:
-			Span           m_span;
-
-			AVFilterContext *m_input;
-			AVFilterContext *m_output;
-
-			AVFilterGraph *m_filter_graph;
 	};
 }

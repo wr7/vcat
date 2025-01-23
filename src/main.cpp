@@ -22,6 +22,7 @@ using vcat::parser::Expression;
 // - Lambdas
 // - Attempt to re-use the same encoder
 // - Fix transcoded packet duration
+// - Switch to using base32 md5 hashes
 
 int main() {
 	const shared::Parameters params = shared::vcat_cli_parse();

@@ -241,9 +241,15 @@ namespace vcat::filter {
 	}
 
 	std::unique_ptr<FrameSource> VideoFile::get_frames(FilterContext& ctx, Span span, const VideoParameters& params) const {
-		return std::make_unique<Decode>(
+		auto file = std::make_unique<VideoFilePktSource>(ctx, m_path, span);
+		const util::FrameInfo frame_info = file->video_codec();
+
+		auto decoded = std::make_unique<Decode>(span, std::move(file));
+
+		return std::make_unique<Rescaler>(
 			span,
-			std::make_unique<VideoFilePktSource>(ctx, m_path, span),
+			std::move(decoded),
+			frame_info,
 			params
 		);
 	}

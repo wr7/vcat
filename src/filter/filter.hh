@@ -4,6 +4,7 @@
 #include "src/eval/eobject.hh"
 #include "src/filter/params.hh"
 #include "src/filter/util.hh"
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -106,7 +107,7 @@ namespace vcat::filter {
 
 	class Decode : public FrameSource {
 		public:
-			Decode(Span s, std::unique_ptr<PacketSource>&& packet_src, const VideoParameters& video_params);
+			Decode(Span s, std::unique_ptr<PacketSource>&& packet_src);
 			bool next_frame(AVFrame **frame);
 			~Decode();
 
@@ -114,7 +115,30 @@ namespace vcat::filter {
 			Span                          m_span;
 			std::unique_ptr<PacketSource> m_packets;
 			AVCodecContext               *m_decoder;
-			util::Rescaler                m_rescaler;
 			AVPacket                     *m_pkt_buf;
 	};
+
+	class Rescaler : public FrameSource {
+		public:
+			Rescaler() = delete;
+			Rescaler(Span span, std::unique_ptr<FrameSource>&& src, const util::FrameInfo& info, const VideoParameters& output);
+			~Rescaler();
+
+			bool next_frame(AVFrame **frame);
+		private:
+			Span                         m_span;
+			std::unique_ptr<FrameSource> m_src;
+
+			int64_t                      m_frame_no;
+
+			// The duration of each frame in fixed-framerate video
+			int64_t                      m_frame_dur;
+
+			AVFilterContext             *m_input;
+			AVFilterContext             *m_output;
+
+			AVFilterGraph               *m_filter_graph;
+	};
+
+	static_assert(!std::is_abstract<Rescaler>());
 }

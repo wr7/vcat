@@ -61,6 +61,7 @@ namespace vcat {
 			void add(uint32_t data);
 			void add(uint64_t data);
 
+			inline void add(bool data)    {add(std::bit_cast<uint8_t >(data));}
 			inline void add(int8_t data)  {add(std::bit_cast<uint8_t >(data));}
 			inline void add(int16_t data) {add(std::bit_cast<uint16_t>(data));}
 			inline void add(int32_t data) {add(std::bit_cast<uint32_t>(data));}
