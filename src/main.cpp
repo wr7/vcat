@@ -21,7 +21,6 @@ using vcat::parser::Expression;
 // - Audio support
 // - Lambdas
 // - Attempt to re-use the same encoder
-// - Fixed frame rate support
 // - Fix transcoded packet duration
 
 int main() {

@@ -9,5 +9,9 @@ namespace vcat::filter {
 
 			int width;  //< Width (in pixels)
 			int height; //< Height (in pixels)
+
+			bool fixed_fps;
+
+			double fps;
 	};
 }

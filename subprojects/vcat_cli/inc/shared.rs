@@ -22,6 +22,8 @@ vcat_def!(
         field(height, int32_t);
 
         field(lossless, bool);
+        field(fixed_fps, bool);
+        field(fps, double);
 
         has_destructor();
     };

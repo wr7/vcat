@@ -58,7 +58,7 @@ namespace vcat::filter {
 	class VFilter : public EObject {
 		public:
 			virtual std::unique_ptr<PacketSource> get_pkts(FilterContext&, Span) const;
-			virtual std::unique_ptr<FrameSource>  get_frames(Span, const VideoParameters&) const = 0;
+			virtual std::unique_ptr<FrameSource>  get_frames(FilterContext&, Span, const VideoParameters&) const = 0;
 	};
 	static_assert(std::is_abstract<VFilter>());
 
@@ -85,7 +85,7 @@ namespace vcat::filter {
 		public:
 			VideoFilePktSource() = delete;
 
-			VideoFilePktSource(const std::string& path, Span span);
+			VideoFilePktSource(FilterContext& fctx, const std::string& path, Span span);
 			bool next_pkt(AVPacket **p_packet);
 			const AVCodecParameters *video_codec();
 			std::span<AVStream *> av_streams();
@@ -101,7 +101,7 @@ namespace vcat::filter {
 			// Walks through the file to calculate `m_dts_shift`, `m_pts_end_info`, and `video_idx`
 			//
 			// NOTE: this should be called before the main AVFormatContext is created.
-			void calculate_info(const std::string& path);
+			void calculate_info(FilterContext& ctx, const std::string& path);
 	};
 
 	class Decode : public FrameSource {

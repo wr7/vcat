@@ -3,10 +3,12 @@
 #include <iomanip>
 #include <fstream>
 #include <iostream>
+#include <limits>
 
 #include "src/filter/video_file.hh"
 #include "libavcodec/packet.h"
 #include "libavutil/avutil.h"
+#include "libavutil/rational.h"
 #include "src/constants.hh"
 #include "src/filter/error.hh"
 #include "src/filter/filter.hh"
@@ -58,7 +60,7 @@ namespace vcat::filter {
 		return "VideoFile";
 	}
 
-	VideoFilePktSource::VideoFilePktSource(const std::string& path, Span span)
+	VideoFilePktSource::VideoFilePktSource(FilterContext& fctx, const std::string& path, Span span)
 		: m_ctx(avformat_alloc_context())
 		, m_span(span)
 		, m_dts_shift(0)
@@ -74,7 +76,7 @@ namespace vcat::filter {
 
 		new(&m_file) util::VCatAVFile(fp);
 
-		calculate_info(path);
+		calculate_info(fctx, path);
 
 		m_ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
 		m_ctx->pb = m_file.get();
@@ -159,13 +161,13 @@ namespace vcat::filter {
 		old.m_ctx = nullptr;
 	}
 
-	static void calculate_packet_duration(std::span<vcat::filter::PacketTimestampInfo> ts_info);
+	static void calculate_packet_duration(FilterContext& ctx, std::span<vcat::filter::PacketTimestampInfo> ts_info);
 	static void calculate_packet_dts(std::span<vcat::filter::PacketTimestampInfo> ts_info, size_t& dts_shift);
 
 	// Walks through the file to calculate `m_dts_start`, `m_dts_end_info`, `m_pts_end_info`, and `video_idx`
 	//
 	// NOTE: this should be called before the main AVFormatContext is created.
-	void VideoFilePktSource::calculate_info(const std::string& path) {
+	void VideoFilePktSource::calculate_info(FilterContext& fctx, const std::string& path) {
 		AVFormatContext *ctx = avformat_alloc_context();
 		ctx->pb = m_file.get();
 		ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
@@ -230,7 +232,7 @@ namespace vcat::filter {
 
 		av_packet_free(&pkt);
 
-		calculate_packet_duration(m_ts_info);
+		calculate_packet_duration(fctx, m_ts_info);
 		calculate_packet_dts(m_ts_info, m_dts_shift);
 
 		avformat_close_input(&ctx);
@@ -238,15 +240,15 @@ namespace vcat::filter {
 		m_file.reset();
 	}
 
-	std::unique_ptr<FrameSource> VideoFile::get_frames(Span span, const VideoParameters& params) const {
+	std::unique_ptr<FrameSource> VideoFile::get_frames(FilterContext& ctx, Span span, const VideoParameters& params) const {
 		return std::make_unique<Decode>(
 			span,
-			std::make_unique<VideoFilePktSource>(m_path, span),
+			std::make_unique<VideoFilePktSource>(ctx, m_path, span),
 			params
 		);
 	}
 
-	static void calculate_packet_duration(std::span<vcat::filter::PacketTimestampInfo> ts_info) {
+	static void calculate_packet_duration(FilterContext& ctx, std::span<vcat::filter::PacketTimestampInfo> ts_info) {
 		for(size_t i = 0; i < ts_info.size(); i++) {
 			if(i + 1 < ts_info.size()) {
 				ts_info[i].duration = ts_info[i + 1].pts - ts_info[i].pts;
@@ -257,7 +259,10 @@ namespace vcat::filter {
 			}
 
 			if(ts_info[i].duration <= 0) {
-				ts_info[i].duration = constants::FALLBACK_FRAME_RATE;
+				AVRational fps = av_d2q(ctx.vparams.fps, std::numeric_limits<int>::max());
+				AVRational sec_p_frame = av_inv_q(fps);
+
+				ts_info[i].duration = av_rescale_q(1, sec_p_frame, constants::TIMEBASE);
 			}
 		}
 	}

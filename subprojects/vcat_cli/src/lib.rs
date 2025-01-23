@@ -75,7 +75,29 @@ argtea_impl! {
             lossless = false;
         }
 
-        /// Interperets the contents of `file` as a script for generating video
+        /// Forces the output video to be a fixed framerate (default).
+        ("--fixed-framerate" | "--fixed-fps") => {
+            fixed_fps = true;
+        }
+
+        /// Allows the output video to contain a mixed framerate.
+        ("--mixed-framerate" | "--mixed-fps") => {
+            fixed_fps = false;
+        }
+
+        /// Sets the output framerate (default 60).
+        ///
+        /// NOTE: this value may still be used when generating mixed-framerate video.
+        (f @ "--framerate" | "--fps", fps) => {
+            let fps = get_arg(fps, "framerate", f);
+
+            fps_ = fps.parse::<f64>().unwrap_or_else(|_| {
+                eprintln!("vcat: invalid framerate `{fps}`");
+                std::process::exit(-1);
+            });
+        }
+
+        /// Interperets the contents of `file` as a script for generating video.
         (file) => {
             if file.starts_with("-") {
                 eprintln!("vcat: invalid flag `{file}`");
@@ -109,6 +131,8 @@ argtea_impl! {
             let mut width_: i32 = 1080;
             let mut height_: i32 = 720;
             let mut lossless = true;
+            let mut fixed_fps = true;
+            let mut fps_ = 60f64;
 
             parse!(std::env::args().skip(1));
 
@@ -124,7 +148,7 @@ argtea_impl! {
             });
 
 
-            return Self {expression, width: width_, height: height_, lossless};
+            return Self {expression, width: width_, height: height_, lossless, fixed_fps, fps: fps_};
         }
     }
 }

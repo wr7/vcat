@@ -22,11 +22,11 @@ namespace vcat::muxing {
 			throw error::invalid_output(span);
 		}
 
-		;
-
 		filter::FilterContext ctx = filter::VideoParameters {
-			.width = params.width,
-			.height=params.height,
+			.width     = params.width,
+			.height    = params.height,
+			.fixed_fps = params.fixed_fps,
+			.fps       = params.fps,
 		};
 
 		std::unique_ptr<filter::PacketSource> source;
