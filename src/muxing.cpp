@@ -22,7 +22,9 @@ namespace vcat::muxing {
 			throw error::invalid_output(span);
 		}
 
-		const filter::VideoParameters vid_params{
+		;
+
+		filter::FilterContext ctx = filter::VideoParameters {
 			.width = params.width,
 			.height=params.height,
 		};
@@ -30,9 +32,9 @@ namespace vcat::muxing {
 		std::unique_ptr<filter::PacketSource> source;
 
 		if(params.lossless) {
-			source = filter->get_pkts(span, vid_params);
+			source = filter->get_pkts(ctx, span);
 		} else {
-			source = encode(span, vid_params, *filter);
+			source = encode(ctx, span, *filter);
 		}
 
 		const AVCodecParameters *ivcodec = source->video_codec();

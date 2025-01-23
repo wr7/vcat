@@ -14,10 +14,9 @@ extern "C" {
 namespace vcat::filter::error {
 	using Hint = Diagnostic::Hint;
 
-	inline Diagnostic ffmpeg_error(std::string_view msg, Span s) {
-		std::abort();
+	inline Diagnostic ffmpeg_error(std::string_view msg, Span s, int error_code) {
 		return Diagnostic(
-			std::format("FFMPEG error: {}", msg),
+			std::format("FFMPEG error: {} ({})", msg, error_code),
 			{
 				Hint::error("", s)
 			}
@@ -120,7 +119,7 @@ namespace vcat::filter::error {
 
 			av_strerror(err_code, msg, sizeof(msg));
 
-			throw ffmpeg_error(msg, s);
+			throw ffmpeg_error(msg, s, err_code);
 		}
 	}
 }

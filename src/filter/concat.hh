@@ -10,7 +10,7 @@ namespace vcat::filter {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters& params) const;
+			std::unique_ptr<PacketSource> get_pkts(FilterContext& ctx, Span) const;
 			std::unique_ptr<FrameSource>  get_frames(Span, const VideoParameters&) const;
 
 			Concat(std::vector<Spanned<const VFilter&>> videos, Span s);

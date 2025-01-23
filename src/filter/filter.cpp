@@ -14,7 +14,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -78,7 +77,7 @@ namespace vcat::filter {
 		av_packet_free(&m_pkt_buf);
 	}
 
-	std::unique_ptr<PacketSource> encode(Span span, const VideoParameters& params, const VFilter& filter) {
+	std::unique_ptr<PacketSource> encode(FilterContext& ctx, Span span, const VFilter& filter) {
 		std::string hash;
 		{
 			Hasher hasher;
@@ -87,7 +86,7 @@ namespace vcat::filter {
 
 			const size_t start = hasher.pos();
 
-			params.hash(hasher);
+			ctx.vparams.hash(hasher);
 			filter.hash(hasher);
 
 			hasher.add(static_cast<uint64_t>(hasher.pos() - start));
@@ -120,7 +119,7 @@ namespace vcat::filter {
 			ostream ? 0 : AVERROR_UNKNOWN
 		);
 
-		AVCodecContext *encoder = util::create_encoder(span, params);
+		AVCodecContext *encoder = util::create_encoder(span, ctx.vparams);
 
 		error::handle_ffmpeg_error(span,
 			avcodec_parameters_from_context(ostream->codecpar, encoder)
@@ -144,7 +143,7 @@ namespace vcat::filter {
 		error::handle_ffmpeg_error(span, frame  ? 0 : AVERROR_UNKNOWN);
 		error::handle_ffmpeg_error(span, packet ? 0 : AVERROR_UNKNOWN);
 
-		std::unique_ptr<FrameSource> frames = filter.get_frames(span, params);
+		std::unique_ptr<FrameSource> frames = filter.get_frames(span, ctx.vparams);
 
 		AVBufferPool *buffer_pool = av_buffer_pool_init(sizeof(int64_t), nullptr);
 
@@ -210,7 +209,7 @@ namespace vcat::filter {
 		return std::make_unique<VideoFilePktSource>(cached_name, span);
 	}
 
-	std::unique_ptr<PacketSource> VFilter::get_pkts(Span span, const VideoParameters& params) const {
-		return encode(span, params, *this);
+	std::unique_ptr<PacketSource> VFilter::get_pkts(FilterContext& ctx, Span span) const {
+		return encode(ctx, span, *this);
 	}
 }

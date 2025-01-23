@@ -8,6 +8,7 @@
 #include <vector>
 
 extern "C" {
+	#include <libavcodec/avcodec.h>
 	#include <libavcodec/packet.h>
 	#include <libavcodec/codec_par.h>
 	#include <libavformat/avformat.h>
@@ -15,6 +16,18 @@ extern "C" {
 }
 
 namespace vcat::filter {
+	class FilterContext {
+		public:
+			FilterContext(FilterContext&) = delete;
+			FilterContext(FilterContext&&) = delete;
+
+			constexpr FilterContext(VideoParameters&& vparams)
+				: vparams(std::move(vparams))
+			{}
+
+			VideoParameters vparams;
+	};
+
 	struct TsInfo {
 		int64_t ts;
 		int64_t duration;
@@ -44,12 +57,12 @@ namespace vcat::filter {
 
 	class VFilter : public EObject {
 		public:
-			virtual std::unique_ptr<PacketSource> get_pkts(Span, const VideoParameters&) const;
+			virtual std::unique_ptr<PacketSource> get_pkts(FilterContext&, Span) const;
 			virtual std::unique_ptr<FrameSource>  get_frames(Span, const VideoParameters&) const = 0;
 	};
 	static_assert(std::is_abstract<VFilter>());
 
-	std::unique_ptr<PacketSource> encode(Span span, const VideoParameters& params, const VFilter& filter);
+	std::unique_ptr<PacketSource> encode(FilterContext& ctx, Span span, const VFilter& filter);
 
 	struct PacketTimestampInfo {
 		int64_t pts;

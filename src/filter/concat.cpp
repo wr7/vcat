@@ -1,10 +1,8 @@
-#include <deque>
-#include <limits>
-#include <optional>
 #include <sstream>
 
 #include "src/filter/concat.hh"
 #include "src/filter/error.hh"
+#include "src/filter/filter.hh"
 #include "src/filter/util.hh"
 #include "src/util.hh"
 
@@ -105,7 +103,7 @@ namespace vcat::filter {
 		public:
 			ConcatPktSource() = delete;
 
-			ConcatPktSource(std::span<const Spanned<const VFilter&>> videos, Span, const VideoParameters& params)
+			ConcatPktSource(std::span<const Spanned<const VFilter&>> videos, FilterContext& ctx, Span)
 				: m_pkt_idx(static_cast<size_t>(0) - 1)
 				, m_idx(0)
 				
@@ -114,7 +112,7 @@ namespace vcat::filter {
 				const AVCodecParameters *prev_param = nullptr;
 
 				for(const auto& video : videos) {
-					m_videos.push_back(video->get_pkts(video.span, params));
+					m_videos.push_back(video->get_pkts(ctx, video.span));
 					const AVCodecParameters *cur_param = m_videos.back()->video_codec();
 
 					if(prev_param) {
@@ -205,7 +203,7 @@ namespace vcat::filter {
 			size_t                                     m_idx;
 	};
 
-	std::unique_ptr<PacketSource> Concat::get_pkts(Span s, const VideoParameters& params) const {
-		return std::make_unique<ConcatPktSource>(m_videos, s, params);
+	std::unique_ptr<PacketSource> Concat::get_pkts(FilterContext& ctx, Span s) const {
+		return std::make_unique<ConcatPktSource>(m_videos, ctx, s);
 	}
 }
