@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/filter/filter.hh"
+#include "src/util.hh"
 
 namespace vcat::filter {
 	class VideoFile : public VFilter {
@@ -16,7 +17,7 @@ namespace vcat::filter {
 			VideoFile(std::string&& path);
 
 		private:
-			uint8_t m_file_hash[32];
+			std::array<uint8_t, vcat::Hasher::HASH_SIZE> m_file_hash;
 			std::string m_path;
 	};
 	static_assert(!std::is_abstract<VideoFile>());

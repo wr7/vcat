@@ -22,7 +22,6 @@ using vcat::parser::Expression;
 // - Lambdas
 // - Attempt to re-use the same encoder
 // - Fix transcoded packet duration
-// - Switch to using base32 md5 hashes
 
 int main() {
 	const shared::Parameters params = shared::vcat_cli_parse();
@@ -53,8 +52,6 @@ int main() {
 		vcat::Hasher hasher;
 
 		object.hash(hasher);
-
-		std::cout << "hash: " << hasher.into_string() << "\n";
 
 		vcat::muxing::write_output(Spanned<const vcat::EObject&>(object, expression->span), params);
 

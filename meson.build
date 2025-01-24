@@ -39,6 +39,7 @@ source_files = [
  ,'src/filter/util.cpp'
  ,'src/filter/video_file.cpp'
  ,'src/util.cpp'
+ ,'src/util/base32.cpp'
  ,'src/error.cpp'
  ,'src/lexer.cpp'
  ,'src/lexer/token.cpp'

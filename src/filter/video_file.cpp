@@ -39,8 +39,7 @@ namespace vcat::filter {
 			hasher.add(&buf[0], num_bytes);
 		}
 
-		std::array<uint8_t, 32> hash = hasher.into_bin();
-		std::copy_n(hash.begin(), hash.size(), m_file_hash);
+		m_file_hash = hasher.into_bin();
 
 		if(f.bad()) {
 			throw std::format("Failed to open file `{}`: {}", m_path, strerror(errno));

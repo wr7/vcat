@@ -37,8 +37,11 @@
 #error "Unsupported platform"
 #endif
 
+#include "src/util/base32.hh"
+
 extern "C" {
 	#include <libavutil/hash.h>
+	#include <libavutil/base64.h>
 }
 
 namespace vcat {
@@ -46,9 +49,14 @@ namespace vcat {
 	std::string indent(std::string&& input, size_t level = 1);
 
 	class Hasher {
+		private:
+			static constexpr std::string HASH_NAME = "MD5";
+
 		public:
+			static constexpr size_t      HASH_SIZE = 16;
+
 			Hasher() {
-				av_hash_alloc(&m_hasher, "SHA256");
+				av_hash_alloc(&m_hasher, HASH_NAME.c_str());
 				av_hash_init(m_hasher);
 			}
 
@@ -67,33 +75,20 @@ namespace vcat {
 			inline void add(int32_t data) {add(std::bit_cast<uint32_t>(data));}
 			inline void add(int64_t data) {add(std::bit_cast<uint64_t>(data));}
 
-			inline std::array<uint8_t, 32> into_bin() {
-				std::array<uint8_t, 32> retval = {0};
+			inline std::array<uint8_t, HASH_SIZE> into_bin() {
+				std::array<uint8_t, HASH_SIZE> retval = {0};
 
-				av_hash_final_bin(m_hasher, &retval[0], 32);
+				av_hash_final_bin(m_hasher, &retval[0], HASH_SIZE);
 
 				return retval;
 			}
 
-			// Gets the hash as a BASE64 string.
+			// Gets the hash as a Crockford base32 string.
 			//
 			// This will consume the underlying object. It is undefined behavior to do anything with this
 			// object after this method has been called.
 			inline std::string into_string() {
-				std::string retval;
-				retval.resize(45);
-
-				av_hash_final_b64(m_hasher, (uint8_t *) retval.data(), retval.size() + 1);
-
-				retval.resize(43);
-				for(auto& c : retval) {
-					switch(c) {
-						case '+': c = '-'; break;
-						case '/': c = '_'; break;
-					}
-				}
-
-				return retval;
+				return base32_encode(into_bin());
 			}
 
 			inline ~Hasher() {
@@ -159,14 +154,14 @@ namespace vcat {
 
 	class HexDump {
 		public:
-			constexpr HexDump(std::span<uint8_t> data)
+			constexpr HexDump(std::span<const uint8_t> data)
 				: m_data(data) {}
 
 			HexDump() = delete;
 			friend std::ostream& operator<<(std::ostream& out, const HexDump& h);
 
 		private:
-			std::span<uint8_t> m_data;
+			std::span<const uint8_t> m_data;
 	};
 
 	template<size_t lhs_len, size_t rhs_len>
@@ -282,5 +277,17 @@ namespace vcat {
 	template<std::unsigned_integral A, std::integral B>
 	auto saturating_sub(A a, B b) {
 		return (a >= b) ? (a - b) : 0;
+	}
+
+	// Like `a << b` except its return type is the same as `a`.
+	template<std::unsigned_integral A, std::integral B>
+	A shl(A a, B b) {
+		return a << b;
+	}
+
+	// Like `a >> b` except its return type is the same as `a`.
+	template<std::unsigned_integral A, std::integral B>
+	A shr(A a, B b) {
+		return a >> b;
 	}
 }
