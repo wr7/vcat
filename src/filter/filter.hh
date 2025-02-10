@@ -59,7 +59,7 @@ namespace vcat::filter {
 	class VFilter : public EObject {
 		public:
 			virtual std::unique_ptr<PacketSource> get_pkts(FilterContext&, Span) const;
-			virtual std::unique_ptr<FrameSource>  get_frames(FilterContext&, Span, const VideoParameters&) const = 0;
+			virtual std::unique_ptr<FrameSource>  get_frames(FilterContext&, Span) const = 0;
 	};
 	static_assert(std::is_abstract<VFilter>());
 

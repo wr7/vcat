@@ -14,7 +14,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <iostream>
 #include <limits>
 #include <memory>
 #include <string>
@@ -229,7 +228,7 @@ namespace vcat::filter {
 		error::handle_ffmpeg_error(span, frame  ? 0 : AVERROR_UNKNOWN);
 		error::handle_ffmpeg_error(span, packet ? 0 : AVERROR_UNKNOWN);
 
-		std::unique_ptr<FrameSource> frames = filter.get_frames(ctx, span, ctx.vparams);
+		std::unique_ptr<FrameSource> frames = filter.get_frames(ctx, span);
 
 		AVBufferPool *buffer_pool = av_buffer_pool_init(sizeof(int64_t), nullptr);
 

@@ -11,7 +11,7 @@ namespace vcat::filter {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			std::unique_ptr<FrameSource> get_frames(FilterContext&, Span, const VideoParameters&) const;
+			std::unique_ptr<FrameSource> get_frames(FilterContext&, Span) const;
 
 			// NOTE: throws `std::string` upon IO failure
 			VideoFile(std::string&& path);

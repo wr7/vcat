@@ -53,14 +53,14 @@ namespace vcat::filter {
 	class ConcatFrameSource : public FrameSource {
 		public:
 			ConcatFrameSource() = delete;
-			ConcatFrameSource(FilterContext& fctx, std::span<const Spanned<const VFilter&>> videos, const VideoParameters& params)
+			ConcatFrameSource(FilterContext& fctx, std::span<const Spanned<const VFilter&>> videos)
 				: m_idx(0)
 				, m_last_pts(0)
 				, m_last_dur(0)
 				, m_pts_offset(0)
 			{
 				for(const auto& video : videos) {
-					m_videos.push_back(video->get_frames(fctx, video.span, params));
+					m_videos.push_back(video->get_frames(fctx, video.span));
 				}
 			}
 
@@ -95,8 +95,8 @@ namespace vcat::filter {
 			std::vector<std::unique_ptr<FrameSource>> m_videos;
 	};
 
-	std::unique_ptr<FrameSource> Concat::get_frames(FilterContext& fctx, Span, const VideoParameters& params) const {
-		return std::make_unique<ConcatFrameSource>(fctx, m_videos, params);
+	std::unique_ptr<FrameSource> Concat::get_frames(FilterContext& fctx, Span) const {
+		return std::make_unique<ConcatFrameSource>(fctx, m_videos);
 	}
 
 	class ConcatPktSource : public PacketSource {

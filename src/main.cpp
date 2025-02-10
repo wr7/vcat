@@ -18,9 +18,7 @@ using vcat::Token;
 using vcat::parser::Expression;
 
 // TODO:
-// - Audio support
 // - Lambdas
-// - Attempt to re-use the same encoder
 // - Fix transcoded packet duration
 
 int main() {
