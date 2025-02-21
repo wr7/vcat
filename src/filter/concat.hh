@@ -10,8 +10,8 @@ namespace vcat::filter {
 			std::string to_string() const;
 			std::string type_name() const;
 
-			std::unique_ptr<PacketSource> get_pkts(FilterContext& ctx, Span) const;
-			std::unique_ptr<FrameSource>  get_frames(FilterContext& ctx, Span) const;
+			std::unique_ptr<PacketSource> get_pkts(FilterContext& ctx, StreamType, Span) const;
+			std::unique_ptr<FrameSource>  get_frames(FilterContext& ctx, StreamType, Span) const;
 
 			Concat(std::vector<Spanned<const VFilter&>> videos, Span s);
 		private:

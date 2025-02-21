@@ -162,7 +162,7 @@ namespace vcat::filter {
 		av_packet_free(&m_pkt_buf);
 	}
 
-	std::unique_ptr<PacketSource> encode(FilterContext& ctx, Span span, const VFilter& filter) {
+	std::unique_ptr<PacketSource> encode(FilterContext& ctx, Span span, const VFilter& filter, StreamType type) {
 		std::string hash;
 		{
 			Hasher hasher;
@@ -188,7 +188,7 @@ namespace vcat::filter {
 		std::string cached_name = "./vcat-cache/" + hash + ".mp4";
 
 		if(std::filesystem::exists(cached_name)) {
-			return std::make_unique<VideoFilePktSource>(ctx, cached_name, span);
+			return std::make_unique<VideoFilePktSource>(ctx, type, cached_name, span);
 		}
 
 		std::string tmp_cached_name = "./vcat-cache/~" + hash + ".mp4";
@@ -228,7 +228,7 @@ namespace vcat::filter {
 		error::handle_ffmpeg_error(span, frame  ? 0 : AVERROR_UNKNOWN);
 		error::handle_ffmpeg_error(span, packet ? 0 : AVERROR_UNKNOWN);
 
-		std::unique_ptr<FrameSource> frames = filter.get_frames(ctx, span);
+		std::unique_ptr<FrameSource> frames = filter.get_frames(ctx, type, span);
 
 		AVBufferPool *buffer_pool = av_buffer_pool_init(sizeof(int64_t), nullptr);
 
@@ -291,10 +291,10 @@ namespace vcat::filter {
 
 		std::filesystem::rename(tmp_cached_name, cached_name);
 
-		return std::make_unique<VideoFilePktSource>(ctx, cached_name, span);
+		return std::make_unique<VideoFilePktSource>(ctx, type, cached_name, span);
 	}
 
-	std::unique_ptr<PacketSource> VFilter::get_pkts(FilterContext& ctx, Span span) const {
-		return encode(ctx, span, *this);
+	std::unique_ptr<PacketSource> VFilter::get_pkts(FilterContext& ctx, StreamType type, Span span) const {
+		return encode(ctx, span, *this, type);
 	}
 }

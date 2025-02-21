@@ -56,14 +56,19 @@ namespace vcat::filter {
 			virtual ~PacketSource() = default;
 	};
 
+	enum class StreamType {
+		Video = 0,
+		// Audio = 1,
+	};
+
 	class VFilter : public EObject {
 		public:
-			virtual std::unique_ptr<PacketSource> get_pkts(FilterContext&, Span) const;
-			virtual std::unique_ptr<FrameSource>  get_frames(FilterContext&, Span) const = 0;
+			virtual std::unique_ptr<PacketSource> get_pkts(FilterContext&, StreamType, Span) const;
+			virtual std::unique_ptr<FrameSource>  get_frames(FilterContext&, StreamType, Span) const = 0;
 	};
 	static_assert(std::is_abstract<VFilter>());
 
-	std::unique_ptr<PacketSource> encode(FilterContext& ctx, Span span, const VFilter& filter);
+	std::unique_ptr<PacketSource> encode(FilterContext& ctx, Span span, const VFilter& filter, StreamType);
 
 	struct PacketTimestampInfo {
 		int64_t pts;
@@ -86,7 +91,7 @@ namespace vcat::filter {
 		public:
 			VideoFilePktSource() = delete;
 
-			VideoFilePktSource(FilterContext& fctx, const std::string& path, Span span);
+			VideoFilePktSource(FilterContext& fctx, StreamType, const std::string& path, Span span);
 			bool next_pkt(AVPacket **p_packet);
 			const AVCodecParameters *video_codec();
 			std::span<AVStream *> av_streams();

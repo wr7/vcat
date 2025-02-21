@@ -59,7 +59,7 @@ namespace vcat::filter {
 		return "VideoFile";
 	}
 
-	VideoFilePktSource::VideoFilePktSource(FilterContext& fctx, const std::string& path, Span span)
+	VideoFilePktSource::VideoFilePktSource(FilterContext& fctx, StreamType type, const std::string& path, Span span)
 		: m_ctx(avformat_alloc_context())
 		, m_span(span)
 		, m_dts_shift(0)
@@ -239,8 +239,8 @@ namespace vcat::filter {
 		m_file.reset();
 	}
 
-	std::unique_ptr<FrameSource> VideoFile::get_frames(FilterContext& ctx, Span span) const {
-		auto file = std::make_unique<VideoFilePktSource>(ctx, m_path, span);
+	std::unique_ptr<FrameSource> VideoFile::get_frames(FilterContext& ctx,StreamType type, Span span) const {
+		auto file = std::make_unique<VideoFilePktSource>(ctx, type, m_path, span);
 		const util::FrameInfo frame_info = file->video_codec();
 
 		auto decoded = std::make_unique<Decode>(span, std::move(file));

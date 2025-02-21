@@ -32,9 +32,9 @@ namespace vcat::muxing {
 		std::unique_ptr<filter::PacketSource> source;
 
 		if(params.lossless) {
-			source = filter->get_pkts(ctx, span);
+			source = filter->get_pkts(ctx, filter::StreamType::Video, span);
 		} else {
-			source = encode(ctx, span, *filter);
+			source = encode(ctx, span, *filter, filter::StreamType::Video);
 		}
 
 		const AVCodecParameters *ivcodec = source->video_codec();

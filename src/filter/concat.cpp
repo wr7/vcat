@@ -53,14 +53,14 @@ namespace vcat::filter {
 	class ConcatFrameSource : public FrameSource {
 		public:
 			ConcatFrameSource() = delete;
-			ConcatFrameSource(FilterContext& fctx, std::span<const Spanned<const VFilter&>> videos)
+			ConcatFrameSource(FilterContext& fctx, StreamType type, std::span<const Spanned<const VFilter&>> videos)
 				: m_idx(0)
 				, m_last_pts(0)
 				, m_last_dur(0)
 				, m_pts_offset(0)
 			{
 				for(const auto& video : videos) {
-					m_videos.push_back(video->get_frames(fctx, video.span));
+					m_videos.push_back(video->get_frames(fctx, type, video.span));
 				}
 			}
 
@@ -95,15 +95,15 @@ namespace vcat::filter {
 			std::vector<std::unique_ptr<FrameSource>> m_videos;
 	};
 
-	std::unique_ptr<FrameSource> Concat::get_frames(FilterContext& fctx, Span) const {
-		return std::make_unique<ConcatFrameSource>(fctx, m_videos);
+	std::unique_ptr<FrameSource> Concat::get_frames(FilterContext& fctx, StreamType type, Span) const {
+		return std::make_unique<ConcatFrameSource>(fctx, type, m_videos);
 	}
 
 	class ConcatPktSource : public PacketSource {
 		public:
 			ConcatPktSource() = delete;
 
-			ConcatPktSource(std::span<const Spanned<const VFilter&>> videos, FilterContext& ctx, Span)
+			ConcatPktSource(std::span<const Spanned<const VFilter&>> videos, FilterContext& ctx,StreamType type, Span)
 				: m_pkt_idx(static_cast<size_t>(0) - 1)
 				, m_idx(0)
 				
@@ -112,7 +112,7 @@ namespace vcat::filter {
 				const AVCodecParameters *prev_param = nullptr;
 
 				for(const auto& video : videos) {
-					m_videos.push_back(video->get_pkts(ctx, video.span));
+					m_videos.push_back(video->get_pkts(ctx, type, video.span));
 					const AVCodecParameters *cur_param = m_videos.back()->video_codec();
 
 					if(prev_param) {
@@ -203,7 +203,7 @@ namespace vcat::filter {
 			size_t                                     m_idx;
 	};
 
-	std::unique_ptr<PacketSource> Concat::get_pkts(FilterContext& ctx, Span s) const {
-		return std::make_unique<ConcatPktSource>(m_videos, ctx, s);
+	std::unique_ptr<PacketSource> Concat::get_pkts(FilterContext& ctx, StreamType type, Span s) const {
+		return std::make_unique<ConcatPktSource>(m_videos, ctx, type, s);
 	}
 }

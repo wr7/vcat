@@ -20,6 +20,7 @@ using vcat::parser::Expression;
 // TODO:
 // - Lambdas
 // - Fix transcoded packet duration
+// - Ensure that audio and video streams are the same length after coming out of the `vopen` filter
 
 int main() {
 	const shared::Parameters params = shared::vcat_cli_parse();
