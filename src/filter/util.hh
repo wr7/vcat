@@ -39,12 +39,18 @@ namespace vcat::filter::util {
 
 	using SFrameInfo = std::variant<VFrameInfo, AFrameInfo>;
 
+	struct FilterGraphInfo {
+		AVFilterGraph *graph;
+		std::vector<AVFilterContext *> inputs;
+		AVFilterContext *output;
+	};
+
 	enum class StreamType {
 		Video = 0,
 		Audio = 1,
 	};
 
-	AVFilterGraph  *create_filtergraph(Span span, const char *string, const VFrameInfo& input_info, AVFilterContext **input, AVFilterContext **output);
+	FilterGraphInfo create_filtergraph(Span span, const char *string, std::span<const SFrameInfo> input_info, StreamType output_type);
 
 	void hash_avcodec_params(Hasher& hasher, const AVCodecParameters& p, Span s);
 
@@ -74,4 +80,7 @@ namespace vcat::filter::util {
 		private:
 			AVIOContext *m_ctx;
 	};
+
+	/// `avfilter_get_by_name` but with proper exception error handling
+	const AVFilter *get_avfilter(const char *name, Span);
 }

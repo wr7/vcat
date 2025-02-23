@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <string>
@@ -79,13 +80,13 @@ namespace vcat::filter {
 			m_frame_dur = std::max(m_frame_dur, (decltype(m_frame_dur)) 1);
 		}
 
-		m_filter_graph = create_filtergraph(
-			m_span,
-			filter_string.c_str(),
-			info,
-			&m_input,
-			&m_output
-		);
+		const util::SFrameInfo s_info{info};
+
+		util::FilterGraphInfo graph_info = util::create_filtergraph(m_span, filter_string.c_str(), std::span(&s_info, 1), StreamType::Video);
+
+		m_filter_graph = graph_info.graph;
+		m_input = graph_info.inputs[0];
+		m_output = graph_info.output;
 	}
 
 	bool Rescaler::next_frame(AVFrame **p_frame) {

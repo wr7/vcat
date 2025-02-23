@@ -12,6 +12,8 @@
 #include <endian.h>
 #include <format>
 #include <iostream>
+#include <variant>
+#include <vector>
 
 extern "C" {
 	#include <libavcodec/avcodec.h>
@@ -184,66 +186,127 @@ namespace vcat::filter::util {
 		return encode_ctx;
 	}
 
-	AVFilterGraph  *create_filtergraph(Span span, const char *string, const VFrameInfo& input_info, AVFilterContext **input, AVFilterContext **output) {
-		const AVFilter *buffer = avfilter_get_by_name("buffer");
-		const AVFilter *buffersink = avfilter_get_by_name("buffersink");
+	FilterGraphInfo create_filtergraph(Span span, const char *string, std::span<const SFrameInfo> input_info, StreamType output_type) {
+		const AVFilter *const buffer = get_avfilter("buffer", span);
+		const AVFilter *const buffersink = get_avfilter("buffersink", span);
+		const AVFilter *const abuffer = get_avfilter("abuffer", span);
+		const AVFilter *const abuffersink = get_avfilter("abuffersink", span);
 
-		if(!buffer) {
-			throw error::ffmpeg_no_filter(span, "buffer");
+		const AVFilter *const output_filter_type = output_type == StreamType::Video ? buffersink : abuffersink;
+
+		AVFilterGraph *graph = avfilter_graph_alloc();
+		error::handle_ffmpeg_error(span, graph ? 0 : AVERROR(ENOMEM));
+
+		std::vector<AVFilterContext *> inputs;
+		AVFilterContext *output = avfilter_graph_alloc_filter(graph, output_filter_type, "out");
+
+		AVFilterInOut *output_inout = avfilter_inout_alloc();
+
+		error::handle_ffmpeg_error(span, output && output_inout ? 0 : AVERROR(ENOMEM));
+
+		error::handle_ffmpeg_error(span,
+			avfilter_init_str(output, nullptr)
+		);
+
+		AVFilterInOut *input_inout = nullptr;
+		AVFilterInOut *last_input_inout = nullptr;
+
+		for(size_t i = 0; i < input_info.size(); i++) {
+			const SFrameInfo& f_info = input_info[i];
+
+			const AVFilter *input_filter_type;
+			std::string input_filter_string;
+
+			if(std::holds_alternative<VFrameInfo>(f_info)) {
+				const VFrameInfo& v_info = std::get<0>(f_info);
+
+				input_filter_type = buffer;
+
+				input_filter_string = std::format(
+						"width={}:height={}:pix_fmt={}:time_base={}/{}:sar={}/{}",
+						v_info.width,
+						v_info.height,
+						static_cast<int>(v_info.pix_fmt),
+						constants::TIMEBASE.num,
+						constants::TIMEBASE.den,
+						v_info.sar.num,
+						v_info.sar.den
+				);
+			} else {
+				const AFrameInfo& a_info = std::get<1>(f_info);
+
+				input_filter_type = abuffer;
+
+				input_filter_string = std::format(
+						"time_base={}/{}:sample_rate={}:sample_fmt={}:channel_layout={}",
+						constants::TIMEBASE.num,
+						constants::TIMEBASE.den,
+						a_info.sample_rate,
+						(int) a_info.sample_fmt,
+						a_info.channel_layout
+				);
+			}
+
+			char *filter_name = av_asprintf("in_%zu", i);
+
+			AVFilterContext *input = avfilter_graph_alloc_filter(graph, input_filter_type, filter_name);
+			AVFilterInOut *inout = avfilter_inout_alloc();
+
+			error::handle_ffmpeg_error(span, input && inout ? 0 : AVERROR(ENOMEM));
+
+			inputs.push_back(input);
+
+			error::handle_ffmpeg_error(span,
+				avfilter_init_str(input, input_filter_string.c_str())
+			);
+
+			inout->filter_ctx = input;
+			inout->name = filter_name;
+			inout->pad_idx = 0;
+			inout->next = nullptr;
+
+			if(last_input_inout) {
+				last_input_inout->next = inout;
+			} else {
+				input_inout = inout;
+			}
+
+			last_input_inout = inout;
 		}
-		if(!buffersink) {
-			throw error::ffmpeg_no_filter(span, "buffersink");
+
+		if(input_inout) {
+			// Add an alias "in" for the first input.
+			// We do this because if no input is specified in the filtergraph string, FFMPEG will implicitly use "in".
+			AVFilterInOut *inout = avfilter_inout_alloc();
+			error::handle_ffmpeg_error(span, inout ? 0 : AVERROR(ENOMEM));
+
+			inout->filter_ctx = input_inout->filter_ctx;
+			inout->name = av_strdup("in");
+			inout->pad_idx = 0;
+			inout->next = nullptr;
+
+			last_input_inout->next = inout;
+			last_input_inout = inout;
 		}
 
-		AVFilterGraph *filter_graph = avfilter_graph_alloc();
-		error::handle_ffmpeg_error(span, filter_graph ? 0 : AVERROR(ENOMEM));
-
-		*input = avfilter_graph_alloc_filter(filter_graph, buffer, "in");
-		*output = avfilter_graph_alloc_filter(filter_graph, buffersink, "out");
-
-		AVFilterInOut *inputs  = avfilter_inout_alloc();
-		AVFilterInOut *outputs = avfilter_inout_alloc();
-
-		error::handle_ffmpeg_error(span, *input && *output && inputs && outputs ? 0 : AVERROR(ENOMEM));
+		output_inout->filter_ctx = output;
+		output_inout->name = av_strdup("out");
+		output_inout->pad_idx = 0;
+		output_inout->next = nullptr;
 
 		error::handle_ffmpeg_error(span,
-			avfilter_init_str(*output, nullptr)
+			avfilter_graph_parse(graph, string, output_inout, input_inout, nullptr)
 		);
 
 		error::handle_ffmpeg_error(span,
-			avfilter_init_str(
-				*input,
-				std::format(
-					"width={}:height={}:pix_fmt={}:time_base={}/{}:sar={}/{}",
-					input_info.width,
-					input_info.height,
-					static_cast<int>(input_info.pix_fmt),
-					constants::TIMEBASE.num,
-					constants::TIMEBASE.den,
-					input_info.sar.num,
-					input_info.sar.den
-				).c_str())
+			avfilter_graph_config(graph, nullptr)
 		);
 
-		inputs->filter_ctx = *input;
-		inputs->name = av_strdup("in");
-		inputs->pad_idx = 0;
-		inputs->next = nullptr;
-
-		outputs->filter_ctx = *output;
-		outputs->name = av_strdup("out");
-		outputs->pad_idx = 0;
-		outputs->next = nullptr;
-
-		error::handle_ffmpeg_error(span,
-			avfilter_graph_parse(filter_graph, string, outputs, inputs, nullptr)
-		);
-
-		error::handle_ffmpeg_error(span,
-			avfilter_graph_config(filter_graph, nullptr)
-		);
-
-		return filter_graph;
+		return FilterGraphInfo {
+			.graph = graph,
+			.inputs = inputs,
+			.output = output,
+		};
 	}
 
 	bool read_packet_from_stream(Span span, AVFormatContext *ctx, int stream_idx, AVPacket *packet) {
@@ -347,5 +410,15 @@ namespace vcat::filter::util {
 		}
 
 		channel_layout = params->ch_layout.u.mask;
+	}
+
+	const AVFilter *get_avfilter(const char *name, Span s) {
+		const AVFilter *filter = avfilter_get_by_name(name);
+
+		if(!filter) {
+			throw error::ffmpeg_no_filter(s, name);
+		}
+
+		return filter;
 	}
 }
