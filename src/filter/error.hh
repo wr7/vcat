@@ -95,6 +95,15 @@ namespace vcat::filter::error {
 		);
 	}
 
+	inline Diagnostic unimplemented_channel_order(Span s) {
+		return Diagnostic(
+			"Channel order has not been implemented yet",
+			{
+				Hint::error("", s)
+			}
+		);
+	}
+
 	inline Diagnostic ffmpeg_no_codec(Span s, AVCodecID codec_id) {
 		return Diagnostic(
 			std::format("The local build of FFMPEG does not support codec `{}`", avcodec_get_name(codec_id)),

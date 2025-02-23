@@ -3,6 +3,7 @@
 #include "src/error.hh"
 #include "src/filter/params.hh"
 #include "src/util.hh"
+#include <variant>
 
 extern "C" {
 	#include <libavcodec/avcodec.h>
@@ -19,8 +20,8 @@ namespace vcat::filter::util {
 	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params);
 	AVCodecContext *create_encoder(Span span, const VideoParameters& params);
 
-	struct FrameInfo {
-		FrameInfo(const AVCodecParameters*);
+	struct VFrameInfo {
+		VFrameInfo(const AVCodecParameters*);
 
 		int           width;
 		int           height;
@@ -28,7 +29,22 @@ namespace vcat::filter::util {
 		AVRational    sar;
 	};
 
-	AVFilterGraph  *create_filtergraph(Span span, const char *string, const FrameInfo& input_info, AVFilterContext **input, AVFilterContext **output);
+	struct AFrameInfo {
+		AFrameInfo(const AVCodecParameters*, Span);
+
+		int            sample_rate;
+		AVSampleFormat sample_fmt;
+		uint64_t       channel_layout; // From AV_CH_LAYOUT_* macros in libavutil/channel_layout.h
+	};
+
+	using SFrameInfo = std::variant<VFrameInfo, AFrameInfo>;
+
+	enum class StreamType {
+		Video = 0,
+		Audio = 1,
+	};
+
+	AVFilterGraph  *create_filtergraph(Span span, const char *string, const VFrameInfo& input_info, AVFilterContext **input, AVFilterContext **output);
 
 	void hash_avcodec_params(Hasher& hasher, const AVCodecParameters& p, Span s);
 

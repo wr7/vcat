@@ -24,9 +24,11 @@ extern "C" {
 	#include <libavformat/avformat.h>
 	#include <libavformat/avio.h>
 	#include <libavutil/avutil.h>
+	#include <libavutil/channel_layout.h>
 	#include <libavutil/error.h>
 	#include <libavutil/frame.h>
 	#include <libavutil/rational.h>
+	#include <libavutil/avstring.h>
 	}
 
 namespace vcat::filter::util {
@@ -182,7 +184,7 @@ namespace vcat::filter::util {
 		return encode_ctx;
 	}
 
-	AVFilterGraph  *create_filtergraph(Span span, const char *string, const FrameInfo& input_info, AVFilterContext **input, AVFilterContext **output) {
+	AVFilterGraph  *create_filtergraph(Span span, const char *string, const VFrameInfo& input_info, AVFilterContext **input, AVFilterContext **output) {
 		const AVFilter *buffer = avfilter_get_by_name("buffer");
 		const AVFilter *buffersink = avfilter_get_by_name("buffersink");
 
@@ -325,10 +327,25 @@ namespace vcat::filter::util {
 		}
 	}
 
-	FrameInfo::FrameInfo(const AVCodecParameters *decoder)
-		: width(decoder->width)
-		, height(decoder->height)
-		, pix_fmt(static_cast<AVPixelFormat>(decoder->format))
-		, sar(decoder->sample_aspect_ratio)
-	{}
+	VFrameInfo::VFrameInfo(const AVCodecParameters *params)
+		: width(params->width)
+		, height(params->height)
+		, pix_fmt(static_cast<AVPixelFormat>(params->format))
+		, sar(params->sample_aspect_ratio)
+	{
+		assert(params->codec_type == AVMEDIA_TYPE_VIDEO);
+	}
+
+	AFrameInfo::AFrameInfo(const AVCodecParameters *params, Span s)
+		: sample_rate(params->sample_rate)
+		, sample_fmt(static_cast<AVSampleFormat>(params->format))
+	{
+		assert(params->codec_type == AVMEDIA_TYPE_AUDIO);
+
+		if(params->ch_layout.order != AV_CHANNEL_ORDER_NATIVE) {
+			throw error::unimplemented_channel_order(s);
+		}
+
+		channel_layout = params->ch_layout.u.mask;
+	}
 }

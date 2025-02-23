@@ -39,7 +39,7 @@ extern "C" {
 }
 
 namespace vcat::filter {
-	Rescaler::Rescaler(Span span, std::unique_ptr<FrameSource>&& src, const util::FrameInfo& info, const VideoParameters& output)
+	Rescaler::Rescaler(Span span, std::unique_ptr<FrameSource>&& src, const util::VFrameInfo& info, const VideoParameters& output)
 	: m_span(span)
 	, m_src(std::move(src))
 	, m_frame_no(-1)

@@ -56,10 +56,7 @@ namespace vcat::filter {
 			virtual ~PacketSource() = default;
 	};
 
-	enum class StreamType {
-		Video = 0,
-		// Audio = 1,
-	};
+	using StreamType = util::StreamType;
 
 	class VFilter : public EObject {
 		public:
@@ -126,7 +123,7 @@ namespace vcat::filter {
 	class Rescaler : public FrameSource {
 		public:
 			Rescaler() = delete;
-			Rescaler(Span span, std::unique_ptr<FrameSource>&& src, const util::FrameInfo& info, const VideoParameters& output);
+			Rescaler(Span span, std::unique_ptr<FrameSource>&& src, const util::VFrameInfo& info, const VideoParameters& output);
 			~Rescaler();
 
 			bool next_frame(AVFrame **frame);

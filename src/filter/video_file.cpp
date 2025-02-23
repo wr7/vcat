@@ -241,7 +241,7 @@ namespace vcat::filter {
 
 	std::unique_ptr<FrameSource> VideoFile::get_frames(FilterContext& ctx,StreamType type, Span span) const {
 		auto file = std::make_unique<VideoFilePktSource>(ctx, type, m_path, span);
-		const util::FrameInfo frame_info = file->video_codec();
+		const util::VFrameInfo frame_info = file->video_codec();
 
 		auto decoded = std::make_unique<Decode>(span, std::move(file));
 
