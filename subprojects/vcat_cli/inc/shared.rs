@@ -16,6 +16,12 @@ vcat_def!(
         has_destructor();
     };
 
+    enum SampleFormat {
+        s16,
+        s32,
+        flt,
+    };
+
     struct Parameters {
         field(expression, Vector<uint8_t>);
         field(width, int32_t);
@@ -26,6 +32,7 @@ vcat_def!(
         field(fps, double);
 
         field(sample_rate, uint64_t);
+        field(sample_format, SampleFormat);
 
         has_destructor();
     };

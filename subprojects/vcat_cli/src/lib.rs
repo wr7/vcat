@@ -1,10 +1,13 @@
+// The argtea_impl macro recurses over 128 times (rust's default limit)
+#![recursion_limit = "512"]
+
 use argtea::argtea_impl;
 
 mod ffi_macros;
 mod shared;
 mod util;
 
-use shared::Parameters;
+use shared::{Parameters, SampleFormat};
 
 fn get_arg<T>(opt: Option<T>, argument_name: &str, flag: &str) -> T {
     let Some(arg) = opt else {
@@ -108,6 +111,16 @@ argtea_impl! {
             });
         }
 
+        /// Sets the output sample format (`s16`, `s32`, or `float`) (default `float`).
+        (f @ "--sample-format" | "--sf", format) => {
+            let format = get_arg(format, "sample format", f);
+
+            sample_format = format.parse::<SampleFormat>().unwrap_or_else(|_| {
+                eprintln!("vcat: invalid sample rate `{format}`");
+                std::process::exit(-1)
+            });
+        }
+
         /// Interperets the contents of `file` as a script for generating video.
         (file) => {
             if file.starts_with("-") {
@@ -145,6 +158,7 @@ argtea_impl! {
             let mut fixed_fps = true;
             let mut fps_ = 60f64;
             let mut sample_rate_ = 48_000u64;
+            let mut sample_format = SampleFormat::flt;
 
             parse!(std::env::args().skip(1));
 
@@ -167,7 +181,8 @@ argtea_impl! {
                 lossless,
                 fixed_fps,
                 fps: fps_,
-                sample_rate: sample_rate_
+                sample_rate: sample_rate_,
+                sample_format,
             };
         }
     }
