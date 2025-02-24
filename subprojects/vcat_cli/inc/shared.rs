@@ -25,6 +25,8 @@ vcat_def!(
         field(fixed_fps, bool);
         field(fps, double);
 
+        field(sample_rate, uint64_t);
+
         has_destructor();
     };
     rust_drop(Parameters_drop);

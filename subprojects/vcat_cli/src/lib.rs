@@ -2,6 +2,7 @@ use argtea::argtea_impl;
 
 mod ffi_macros;
 mod shared;
+mod util;
 
 use shared::Parameters;
 
@@ -97,6 +98,16 @@ argtea_impl! {
             });
         }
 
+        /// Sets the output sample rate in Hz or kHz (default 48kHz).
+        (f @ "--sample-rate" | "--sr", sample_rate) => {
+            let sample_rate = get_arg(sample_rate, "sample rate", f);
+
+            sample_rate_ = util::parse_hertz(&sample_rate).unwrap_or_else(|| {
+                eprintln!("vcat: invalid sample rate `{sample_rate}`");
+                std::process::exit(-1)
+            });
+        }
+
         /// Interperets the contents of `file` as a script for generating video.
         (file) => {
             if file.starts_with("-") {
@@ -133,6 +144,7 @@ argtea_impl! {
             let mut lossless = true;
             let mut fixed_fps = true;
             let mut fps_ = 60f64;
+            let mut sample_rate_ = 48_000u64;
 
             parse!(std::env::args().skip(1));
 
@@ -148,7 +160,15 @@ argtea_impl! {
             });
 
 
-            return Self {expression, width: width_, height: height_, lossless, fixed_fps, fps: fps_};
+            return Self {
+                expression,
+                width: width_,
+                height: height_,
+                lossless,
+                fixed_fps,
+                fps: fps_,
+                sample_rate: sample_rate_
+            };
         }
     }
 }

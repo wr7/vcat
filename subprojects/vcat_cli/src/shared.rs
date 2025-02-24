@@ -7,6 +7,7 @@ mod shared {
 
     use f64 as double;
     use i32 as int32_t;
+    use u64 as uint64_t;
     use u8 as uint8_t;
     use usize as size_t;
 
