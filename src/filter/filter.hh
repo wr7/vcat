@@ -22,11 +22,13 @@ namespace vcat::filter {
 			FilterContext(FilterContext&) = delete;
 			FilterContext(FilterContext&&) = delete;
 
-			constexpr FilterContext(VideoParameters&& vparams)
+			constexpr FilterContext(VideoParameters&& vparams, AudioParameters&& aparams)
 				: vparams(std::move(vparams))
+				, aparams(std::move(aparams))
 			{}
 
 			VideoParameters vparams;
+			AudioParameters aparams;
 	};
 
 	struct TsInfo {
