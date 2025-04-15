@@ -145,4 +145,25 @@ namespace vcat::filter {
 	};
 
 	static_assert(!std::is_abstract<Rescaler>());
+
+	class Resampler : public FrameSource {
+		public:
+			Resampler() = delete;
+			Resampler(Span span, std::unique_ptr<FrameSource>&& src, const util::AFrameInfo& info, const AudioParameters& output, std::optional<int64_t> out_duration);
+			~Resampler();
+
+			bool next_frame(AVFrame **frame);
+		private:
+			Span                         m_span;
+			std::unique_ptr<FrameSource> m_src;
+
+			AVFilterContext             *m_input;
+			AVFilterContext             *m_output;
+
+			AVFilterGraph               *m_filter_graph;
+			size_t                       m_sample_idx;
+			size_t                       m_sample_rate;
+	};
+
+	static_assert(!std::is_abstract<Resampler>());
 }

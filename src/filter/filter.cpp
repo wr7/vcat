@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <format>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -33,6 +34,7 @@ extern "C" {
 	#include <libavutil/mem.h>
 	#include <libavutil/avutil.h>
 	#include <libavutil/buffer.h>
+	#include <libavutil/channel_layout.h>
 	#include <libavutil/mathematics.h>
 	#include <libavutil/rational.h>
 	#include <libavutil/error.h>
@@ -112,6 +114,11 @@ namespace vcat::filter {
 		error::handle_ffmpeg_error(m_span, res);
 
 		if(m_frame_dur) {
+			// For some reason, the `fps` filter will set duration of each frame to `1` and updates the pts
+			// accordingly.
+			//
+			// This will speed up the video by a factor of over 1000, so we need to manually reconstruct pts
+			// and duration in order to fix this.
 			AVFrame *const frame = *p_frame;
 			frame->pts = m_frame_no * m_frame_dur;
 			frame->duration = m_frame_dur;
@@ -121,6 +128,110 @@ namespace vcat::filter {
 	}
 
 	Rescaler::~Rescaler() {
+		avfilter_graph_free(&m_filter_graph);
+	}
+
+	Resampler::Resampler(Span span, std::unique_ptr<FrameSource>&& src, const util::AFrameInfo& info, const AudioParameters& output, std::optional<int64_t> out_duration)
+	: m_span(span)
+	, m_src(std::move(src))
+	, m_input(nullptr)
+	, m_output(nullptr)
+	, m_filter_graph(nullptr)
+	, m_sample_idx(std::numeric_limits<size_t>::max())
+	, m_sample_rate(output.sample_rate)
+	{
+		AVSampleFormat out_sample_format = util::SampleFormat_get_AVSampleFormat(output.sample_format);
+		bool do_resample = 
+			info.sample_rate    != output.sample_rate ||
+			info.sample_fmt     != out_sample_format  ||
+			info.channel_layout != output.channel_layout;
+
+		std::string filter_string;
+
+		if(out_duration && do_resample) {
+			// Do a quick & dirty trim first so that we don't have to resample as much audio
+			const AVRational sample_dur = {1, info.sample_rate};
+			const uint64_t end_sample = av_rescale_q_rnd(*out_duration, constants::TIMEBASE, sample_dur, AV_ROUND_UP);
+
+			filter_string += std::format(
+				"atrim=end_sample={},",
+				end_sample
+			);
+		}
+		
+		if(do_resample) {
+			filter_string += std::format(
+				"aresample="
+					"out_sample_rate={}:"
+					"out_sample_fmt={}:"
+					"out_chlayout={},"
+				,
+				output.sample_rate,
+				(int) out_sample_format,
+				output.channel_layout
+			);
+		}
+
+		if(out_duration) {
+			const AVRational sample_dur = {1, output.sample_rate};
+			const uint64_t end_sample = av_rescale_q(*out_duration, constants::TIMEBASE, sample_dur);
+
+			filter_string += std::format(
+				"atrim=end_sample={},"
+				"apad=whole_len={}",
+				end_sample, end_sample
+			);
+		}
+
+		if(!out_duration && !do_resample) {
+			filter_string = "anull";
+		}
+
+		if(filter_string.ends_with(',')) {
+			filter_string.pop_back();
+		}
+
+		const util::SFrameInfo s_info{info};
+
+		util::FilterGraphInfo graph_info = util::create_filtergraph(m_span, filter_string.c_str(), std::span(&s_info, 1), StreamType::Audio);
+
+		m_filter_graph = graph_info.graph;
+		m_input = graph_info.inputs[0];
+		m_output = graph_info.output;
+	}
+
+	bool Resampler::next_frame(AVFrame **p_frame) {
+		m_sample_idx++;
+
+		int res;
+		while((res = av_buffersink_get_frame(m_output, *p_frame)) == AVERROR(EAGAIN)) {
+			if(m_src->next_frame(p_frame)) {
+				error::handle_ffmpeg_error(m_span,
+					av_buffersrc_add_frame(m_input, *p_frame)
+				);
+			} else {
+				error::handle_ffmpeg_error(m_span,
+					av_buffersrc_add_frame(m_input, nullptr)
+				);
+			}
+		}
+
+		if(res == AVERROR_EOF) {
+			return false;
+		}
+
+		error::handle_ffmpeg_error(m_span, res);
+
+		(*p_frame)->pts      = av_rescale_q(m_sample_idx * constants::SAMPLES_PER_FRAME, {1, static_cast<int>(m_sample_rate)}, constants::TIMEBASE);
+		(*p_frame)->duration = av_rescale_q((*p_frame)->nb_samples,                      {1, static_cast<int>(m_sample_rate)}, constants::TIMEBASE);
+
+		std::cerr << "pts: " << (*p_frame)->pts << "\n";
+		std::cerr << "duration: " << (*p_frame)->duration << "\n";
+
+		return true;
+	}
+
+	Resampler::~Resampler() {
 		avfilter_graph_free(&m_filter_graph);
 	}
 

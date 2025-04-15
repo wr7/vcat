@@ -421,4 +421,18 @@ namespace vcat::filter::util {
 
 		return filter;
 	}
+
+	AVSampleFormat SampleFormat_get_AVSampleFormat(shared::SampleFormat format) {
+		switch(format) {
+			case shared::s16:
+				return AV_SAMPLE_FMT_S16P;
+			case shared::s32:
+				return AV_SAMPLE_FMT_S32P;
+			case shared::flt:
+				return AV_SAMPLE_FMT_FLTP;
+		}
+
+		std::cerr << "Internal error: invalid SampleFormat\n";
+		std::abort();
+	}
 }

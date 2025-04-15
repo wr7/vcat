@@ -83,4 +83,6 @@ namespace vcat::filter::util {
 
 	/// `avfilter_get_by_name` but with proper exception error handling
 	const AVFilter *get_avfilter(const char *name, Span);
+
+	AVSampleFormat SampleFormat_get_AVSampleFormat(shared::SampleFormat format);
 }
