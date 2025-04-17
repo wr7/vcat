@@ -44,6 +44,7 @@ source_files = [
  ,'src/lexer.cpp'
  ,'src/lexer/token.cpp'
  ,'src/muxing.cpp'
+ ,'src/muxing/util.cpp'
  ,'src/parser.cpp'
  ,'src/parser/expression.cpp'
  ,'src/parser/util.cpp'
