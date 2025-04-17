@@ -165,7 +165,7 @@ namespace vcat::filter::util {
 		return decode_ctx;
 	}
 
-	AVCodecContext *create_encoder(Span span, const VideoParameters& params) {
+	AVCodecContext *create_video_encoder(Span span, const VideoParameters& params) {
 		const AVCodec *av_encoder = avcodec_find_encoder(AV_CODEC_ID_H264);
 		if(!av_encoder) {
 			throw error::ffmpeg_no_codec(span, AV_CODEC_ID_H264);
@@ -182,6 +182,33 @@ namespace vcat::filter::util {
 		encode_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER | AV_CODEC_FLAG_COPY_OPAQUE;
 
 		avcodec_open2(encode_ctx, av_encoder, nullptr);
+
+		return encode_ctx;
+	}
+
+	AVCodecContext *create_audio_encoder(Span span, const AudioParameters& params) {
+		const AVCodec *aac_codec = avcodec_find_encoder(AV_CODEC_ID_AAC);
+		if(!aac_codec) {
+			throw error::ffmpeg_no_codec(span, AV_CODEC_ID_AAC);
+		}
+
+		AVCodecContext *encode_ctx = avcodec_alloc_context3(aac_codec);
+		error::handle_ffmpeg_error(span, encode_ctx ? 0 : AVERROR_UNKNOWN);
+
+		encode_ctx->sample_rate = params.sample_rate;
+		encode_ctx->sample_fmt = SampleFormat_get_AVSampleFormat(params.sample_format);
+		encode_ctx->time_base = constants::TIMEBASE; // TODO
+		encode_ctx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
+		encode_ctx->profile = AV_PROFILE_AAC_LOW;
+		encode_ctx->cutoff = 0;
+
+		error::handle_ffmpeg_error(span,
+			av_channel_layout_from_mask(&encode_ctx->ch_layout, constants::CHANNEL_LAYOUT)
+		);
+
+		encode_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+		avcodec_open2(encode_ctx, aac_codec, nullptr);
 
 		return encode_ctx;
 	}
@@ -302,6 +329,10 @@ namespace vcat::filter::util {
 			avfilter_graph_config(graph, nullptr)
 		);
 
+		if(output_type == StreamType::Audio) {
+			av_buffersink_set_frame_size(output, constants::SAMPLES_PER_FRAME);
+		}
+
 		return FilterGraphInfo {
 			.graph = graph,
 			.inputs = inputs,
@@ -405,11 +436,20 @@ namespace vcat::filter::util {
 	{
 		assert(params->codec_type == AVMEDIA_TYPE_AUDIO);
 
-		if(params->ch_layout.order != AV_CHANNEL_ORDER_NATIVE) {
-			throw error::unimplemented_channel_order(s);
+		if(params->ch_layout.order == AV_CHANNEL_ORDER_NATIVE) {
+			channel_layout = params->ch_layout.u.mask;
+			return;
+		} else if(params->ch_layout.order == AV_CHANNEL_ORDER_UNSPEC) {
+			AVChannelLayout layout;
+			av_channel_layout_default(&layout, params->ch_layout.nb_channels);
+
+			if(layout.order == AV_CHANNEL_ORDER_NATIVE) {
+				channel_layout = layout.u.mask;
+				return;
+			}
 		}
 
-		channel_layout = params->ch_layout.u.mask;
+		throw error::unimplemented_channel_order(s);
 	}
 
 	const AVFilter *get_avfilter(const char *name, Span s) {

@@ -60,6 +60,11 @@ namespace vcat::filter {
 
 	using StreamType = util::StreamType;
 
+	// We are using regular functions because, for some reason, C++ enums cannot have methods
+
+	AVMediaType StreamType_to_AVMediaType(StreamType);
+	std::string_view StreamType_file_extension(StreamType);
+
 	class VFilter : public EObject {
 		public:
 			virtual std::unique_ptr<PacketSource> get_pkts(FilterContext&, StreamType, Span) const;
@@ -106,7 +111,7 @@ namespace vcat::filter {
 			// Walks through the file to calculate `m_dts_shift`, `m_pts_end_info`, and `video_idx`
 			//
 			// NOTE: this should be called before the main AVFormatContext is created.
-			void calculate_info(FilterContext& ctx, const std::string& path);
+			void calculate_info(FilterContext& ctx, StreamType, const std::string& path);
 	};
 
 	class Decode : public FrameSource {

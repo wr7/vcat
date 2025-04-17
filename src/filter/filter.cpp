@@ -279,11 +279,16 @@ namespace vcat::filter {
 		{
 			Hasher hasher;
 
-			hasher.add("_cached-video_");
+			hasher.add("_cached-stream_");
 
 			const size_t start = hasher.pos();
 
-			ctx.vparams.hash(hasher);
+			if(type == StreamType::Video) {
+				ctx.vparams.hash(hasher);
+			} else {
+				ctx.aparams.hash(hasher);
+			}
+
 			filter.hash(hasher);
 
 			hasher.add(static_cast<uint64_t>(hasher.pos() - start));
@@ -297,13 +302,21 @@ namespace vcat::filter {
 			throw error::failed_cache_directory(span, e.what());
 		}
 
-		std::string cached_name = "./vcat-cache/" + hash + ".mp4";
+		std::string cached_name = format(
+			"./vcat-cache/{}.{}",
+			hash,
+			StreamType_file_extension(type)
+		);
 
 		if(std::filesystem::exists(cached_name)) {
 			return std::make_unique<VideoFilePktSource>(ctx, type, cached_name, span);
 		}
 
-		std::string tmp_cached_name = "./vcat-cache/~" + hash + ".mp4";
+		std::string tmp_cached_name = format(
+			"./vcat-cache/~{}.{}",
+			hash,
+			StreamType_file_extension(type)
+		);
 
 		AVFormatContext *output = nullptr;
 		error::handle_ffmpeg_error(span,
@@ -316,13 +329,22 @@ namespace vcat::filter {
 			ostream ? 0 : AVERROR_UNKNOWN
 		);
 
-		AVCodecContext *encoder = util::create_encoder(span, ctx.vparams);
+		AVCodecContext *encoder;
+		if(type == StreamType::Video) {
+			encoder = util::create_video_encoder(span, ctx.vparams);
+		} else {
+			encoder = util::create_audio_encoder(span, ctx.aparams);
+		}
 
 		error::handle_ffmpeg_error(span,
 			avcodec_parameters_from_context(ostream->codecpar, encoder)
 		);
 
 		ostream->time_base = constants::TIMEBASE;
+
+		if(type == StreamType::Audio) {
+			ostream->time_base = AVRational {1, ctx.aparams.sample_rate};
+		}
 
 		if(!(output->flags & AVFMT_NOFILE)) {
 			error::handle_ffmpeg_error(span,
@@ -350,8 +372,10 @@ namespace vcat::filter {
 				if(frames->next_frame(&frame)) {
 					assert(frame->duration);
 
-					frame->opaque_ref = av_buffer_pool_get(buffer_pool);
-					*reinterpret_cast<int64_t *>(frame->opaque_ref->data) = frame->duration;
+					if(type == StreamType::Video) {
+						frame->opaque_ref = av_buffer_pool_get(buffer_pool);
+						*reinterpret_cast<int64_t *>(frame->opaque_ref->data) = frame->duration;
+					}
 
 					error::handle_ffmpeg_error(span,
 						avcodec_send_frame(encoder, frame)
@@ -369,15 +393,18 @@ namespace vcat::filter {
 
 			packet->pos = -1;
 			packet->stream_index = 0;
+
+			if(packet->pts >= 0) { // Don't write audio priming packet
+				av_packet_rescale_ts(packet, encoder->time_base, ostream->time_base);
+
+				av_write_frame(output, packet);
+			}
+
 			// The x264 encoder will not fill in the packet duration
 			// We must do that ourselves
 			if(packet->opaque_ref && !packet->duration) {
 				packet->duration = *reinterpret_cast<int64_t *>(packet->opaque_ref->data);
 			}
-
-			av_packet_rescale_ts(packet, constants::TIMEBASE, ostream->time_base);
-
-			av_interleaved_write_frame(output, packet);
 
 			av_packet_unref(packet);
 		}
@@ -408,5 +435,29 @@ namespace vcat::filter {
 
 	std::unique_ptr<PacketSource> VFilter::get_pkts(FilterContext& ctx, StreamType type, Span span) const {
 		return encode(ctx, span, *this, type);
+	}
+
+	AVMediaType StreamType_to_AVMediaType(StreamType type) {
+		switch(type) {
+			case StreamType::Video:
+				return AVMEDIA_TYPE_VIDEO;
+			case StreamType::Audio:
+				return AVMEDIA_TYPE_AUDIO;
+		}
+
+		std::cerr << "internal error: invalid StreamType `"<<(int) type<<"`\n";
+		std::abort();
+	}
+
+	std::string_view StreamType_file_extension(StreamType type) {
+		switch(type) {
+			case StreamType::Video:
+				return "mp4";
+			case StreamType::Audio:
+				return "m4a";
+		}
+
+		std::cerr << "internal error: invalid StreamType `"<<(int) type<<"`\n";
+		std::abort();
 	}
 }

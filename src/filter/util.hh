@@ -18,7 +18,9 @@ extern "C" {
 namespace vcat::filter::util {
 	bool codecs_are_compatible(const AVCodecParameters *params1, const AVCodecParameters *params2);
 	AVCodecContext *create_decoder(Span span, const AVCodecParameters *params);
-	AVCodecContext *create_encoder(Span span, const VideoParameters& params);
+
+	AVCodecContext *create_video_encoder(Span span, const VideoParameters& params);
+	AVCodecContext *create_audio_encoder(Span span, const AudioParameters& params);
 
 	struct VFrameInfo {
 		VFrameInfo(const AVCodecParameters*);

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <optional>
 
 #include "src/filter/video_file.hh"
 #include "libavcodec/packet.h"
@@ -75,7 +76,7 @@ namespace vcat::filter {
 
 		new(&m_file) util::VCatAVFile(fp);
 
-		calculate_info(fctx, path);
+		calculate_info(fctx, type, path);
 
 		m_ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
 		m_ctx->pb = m_file.get();
@@ -166,7 +167,7 @@ namespace vcat::filter {
 	// Walks through the file to calculate `m_dts_start`, `m_dts_end_info`, `m_pts_end_info`, and `video_idx`
 	//
 	// NOTE: this should be called before the main AVFormatContext is created.
-	void VideoFilePktSource::calculate_info(FilterContext& fctx, const std::string& path) {
+	void VideoFilePktSource::calculate_info(FilterContext& fctx, StreamType type, const std::string& path) {
 		AVFormatContext *ctx = avformat_alloc_context();
 		ctx->pb = m_file.get();
 		ctx->flags |= AVFMT_FLAG_SORT_DTS | AVFMT_FLAG_GENPTS | AVFMT_AVOID_NEG_TS_MAKE_ZERO;
