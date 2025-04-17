@@ -105,10 +105,12 @@ argtea_impl! {
         (f @ "--sample-rate" | "--sr", sample_rate) => {
             let sample_rate = get_arg(sample_rate, "sample rate", f);
 
-            sample_rate_ = util::parse_hertz(&sample_rate).unwrap_or_else(|| {
-                eprintln!("vcat: invalid sample rate `{sample_rate}`");
-                std::process::exit(-1)
-            });
+            sample_rate_ = util::parse_hertz(&sample_rate)
+                .filter(|r| *r <= i32::MAX as u64) // FFMPEG uses `int` for sample rate
+                .unwrap_or_else(|| {
+                    eprintln!("vcat: invalid sample rate `{sample_rate}`");
+                    std::process::exit(-1)
+                });
         }
 
         /// Sets the output sample format (`s16`, `s32`, or `float`) (default `float`).
