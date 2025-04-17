@@ -250,12 +250,14 @@ namespace vcat::filter::util {
 				input_filter_type = buffer;
 
 				input_filter_string = std::format(
-						"width={}:height={}:pix_fmt={}:time_base={}/{}:sar={}/{}",
+						"width={}:height={}:pix_fmt={}:time_base={}/{}:colorspace={}:range={}:sar={}/{}",
 						v_info.width,
 						v_info.height,
 						static_cast<int>(v_info.pix_fmt),
 						constants::TIMEBASE.num,
 						constants::TIMEBASE.den,
+						static_cast<int>(v_info.color_space),
+						static_cast<int>(v_info.color_range),
 						v_info.sar.num,
 						v_info.sar.den
 				);
@@ -425,6 +427,10 @@ namespace vcat::filter::util {
 		: width(params->width)
 		, height(params->height)
 		, pix_fmt(static_cast<AVPixelFormat>(params->format))
+		, color_space(params->color_space)
+		, color_range(params->color_range)
+		, color_primaries(params->color_primaries)
+		, color_trc(params->color_trc)
 		, sar(params->sample_aspect_ratio)
 	{
 		assert(params->codec_type == AVMEDIA_TYPE_VIDEO);

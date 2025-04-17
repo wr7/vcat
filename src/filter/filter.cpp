@@ -52,19 +52,33 @@ namespace vcat::filter {
 	, m_filter_graph(nullptr)
 	{
 		if(
-			info.width   == output.width            &&
-			info.height  == output.height           &&
-			info.pix_fmt == constants::PIXEL_FORMAT &&
-			!output.fixed_fps                       &&
+			info.width           == output.width                       &&
+			info.height          == output.height                      &&
+			info.pix_fmt         == constants::PIXEL_FORMAT            &&
+			info.color_space     == constants::COLOR_SPACE             &&
+			info.color_range     == constants::COLOR_RANGE             &&
+			info.color_primaries == constants::COLOR_PRIMARIES         &&
+			info.color_trc       == constants::COLOR_TRANSFER_FUNCTION &&
+			!output.fixed_fps                                          &&
 			av_cmp_q(info.sar, constants::SAMPLE_ASPECT_RATIO) == 0
 		) {
 			return;
 		}
 
 		std::string filter_string = std::format(
-				"format={},"
+				"colorspace="
+					"space={}:"
+					"trc={}:"
+					"primaries={}:"
+					"range={}:"
+					"format={}"
+				","
 				"scale={}:{}:force_original_aspect_ratio=decrease,"
 				"pad={}:{}:-1:-1",
+				static_cast<int>(constants::COLOR_SPACE),
+				static_cast<int>(constants::COLOR_TRANSFER_FUNCTION),
+				static_cast<int>(constants::COLOR_PRIMARIES),
+				static_cast<int>(constants::COLOR_RANGE),
 				static_cast<int>(constants::PIXEL_FORMAT),
 				output.width,
 				output.height,

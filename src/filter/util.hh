@@ -25,10 +25,14 @@ namespace vcat::filter::util {
 	struct VFrameInfo {
 		VFrameInfo(const AVCodecParameters*);
 
-		int           width;
-		int           height;
-		AVPixelFormat pix_fmt;
-		AVRational    sar;
+		int                           width;
+		int                           height;
+		AVPixelFormat                 pix_fmt;
+		AVColorSpace                  color_space;
+		AVColorRange                  color_range;
+		AVColorPrimaries              color_primaries;
+		AVColorTransferCharacteristic color_trc;
+		AVRational                    sar;
 	};
 
 	struct AFrameInfo {

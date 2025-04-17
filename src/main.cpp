@@ -19,7 +19,6 @@ using vcat::parser::Expression;
 
 // TODO:
 // - Lambdas
-// - Specify color space and color range for buffer filter source
 // - Fix audio concatenation
 // - Fix transcoded packet duration
 // - Ensure that audio and video streams are the same length after coming out of the `vopen` filter
