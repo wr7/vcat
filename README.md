@@ -4,9 +4,11 @@ vcat (Video conCAT) is a declarative language for editing video.
 
 ## Currently implemented features
 ### Video features
-- Video concatenation (via `concat` function)
+- Concatenation (via `concat` function)
+- Audio support
 - A combination of lossless editing techniques and video caching allows for faster re-render times compared to other video editing software
-- Automatic transcoding, rescaling, padding, colorspace conversion, and framerate conversion
+- Automatic transcoding, rescaling, padding, colorspace conversion, and framerate conversion for video
+- Automatic transcoding and resampling for audio
 - Fixed and mixed framerate support
 
 ### Language features
@@ -26,7 +28,6 @@ in
 - Extensive error message system (similar to the one used in my other project, [wlab](https://wr7.dev/wlab/))
 
 ## Planned features
-- Audio support
 - Video trimming
 - Lambdas and functional programming features such as `map`
 - Other video/audio effects

@@ -1,7 +1,8 @@
 let
   o = vopen;
 in
-concat(
-    o("prism.mp4"),
-    o("stripped.mp4")
-)
+o("IMG_1667.mp4")
+# concat(
+#     o("prism.mp4"),
+#     o("stripped.mp4")
+# )

@@ -91,6 +91,7 @@ namespace vcat::filter {
 	}
 
 	bool VideoFilePktSource::next_pkt(AVPacket **p_packet) {
+		start:
 		AVPacket *const packet = *p_packet;
 
 		int res = av_read_frame(m_ctx, *p_packet);
@@ -98,11 +99,15 @@ namespace vcat::filter {
 			return false;
 		}
 
+		if(packet->stream_index != m_stream_idx) {
+			av_packet_unref(packet);
+			goto start;
+		}
+
 		error::handle_ffmpeg_error(m_span, res);
 
-		packet->stream_index = 0;
-
 		const AVRational old_timebase = m_ctx->streams[packet->stream_index]->time_base;
+		packet->stream_index = 0;
 
 		av_packet_rescale_ts(packet, old_timebase, constants::TIMEBASE);
 
@@ -122,7 +127,7 @@ namespace vcat::filter {
 	}
 
 	const AVCodecParameters *VideoFilePktSource::video_codec() {
-		return m_ctx->streams[m_video_idx]->codecpar;
+		return m_ctx->streams[m_stream_idx]->codecpar;
 	}
 
 	std::span<AVStream *> VideoFilePktSource::av_streams() {
@@ -180,16 +185,21 @@ namespace vcat::filter {
 			avformat_find_stream_info(ctx, NULL)
 		);
 
-		bool has_video_idx = false;
+		const AVMediaType media_type = StreamType_to_AVMediaType(type);
+
+		bool has_stream_idx = false;
 		for(size_t i = 0; i < ctx->nb_streams; i++) {
-			if(ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-				m_video_idx = i;
-				has_video_idx = true;
+			if(ctx->streams[i]->codecpar->codec_type == media_type) {
+				m_stream_idx = i;
+				has_stream_idx = true;
 				break;
 			}
 		}
 
-		if(!has_video_idx) {
+		if(!has_stream_idx) {
+			// TODO: allow for empty streams
+			// we will set a flag and fill in the current stream with an 'blank' version (to match the length
+			// of the other stream)
 			throw error::no_video(m_span, path);
 		}
 
@@ -199,17 +209,17 @@ namespace vcat::filter {
 		while(int res = av_read_frame(ctx, pkt) != AVERROR_EOF) {
 			error::handle_ffmpeg_error(m_span,res);
 
-			if(pkt->stream_index != m_video_idx) {
+			if(pkt->stream_index != m_stream_idx) {
 				continue;
 			}
 
-			if(pkt->pts < 0) {
+			if(pkt->pts == AV_NOPTS_VALUE) {
 				throw error::no_pts(m_span);
 			}
 
 			const int64_t old_pts = pkt->pts;
 
-			av_packet_rescale_ts(pkt, ctx->streams[m_video_idx]->time_base, constants::TIMEBASE);
+			av_packet_rescale_ts(pkt, ctx->streams[m_stream_idx]->time_base, constants::TIMEBASE);
 
 			const int64_t                 pts = pkt->pts;
 			const std::pair<bool, size_t> bsr = binary_search_by(std::span(m_ts_info), [pts](const auto& t) {return t.pts <=> pts;});
@@ -242,16 +252,27 @@ namespace vcat::filter {
 
 	std::unique_ptr<FrameSource> VideoFile::get_frames(FilterContext& ctx,StreamType type, Span span) const {
 		auto file = std::make_unique<VideoFilePktSource>(ctx, type, m_path, span);
-		const util::VFrameInfo frame_info = file->video_codec();
+
+		const AVCodecParameters *codec_params = file->video_codec();
 
 		auto decoded = std::make_unique<Decode>(span, std::move(file));
 
-		return std::make_unique<Rescaler>(
-			span,
-			std::move(decoded),
-			frame_info,
-			ctx.vparams
-		);
+		if(type == StreamType::Video) {
+			return std::make_unique<Rescaler>(
+				span,
+				std::move(decoded),
+				codec_params,
+				ctx.vparams
+			);
+		} else {
+			return std::make_unique<Resampler>(
+				span,
+				std::move(decoded),
+				util::AFrameInfo(codec_params, span),
+				ctx.aparams,
+				std::nullopt
+			);
+		}
 	}
 
 	static void calculate_packet_duration(FilterContext& ctx, std::span<vcat::filter::PacketTimestampInfo> ts_info) {

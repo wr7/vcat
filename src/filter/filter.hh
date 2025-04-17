@@ -86,7 +86,7 @@ namespace vcat::filter {
 			AVFormatContext *m_ctx;
 			Span             m_span;
 			size_t           m_dts_shift;
-			int64_t          m_video_idx;
+			int64_t          m_stream_idx;
 			size_t           m_pkt_no; //< The index of the current packet (starting at 0)
 
 			std::vector<PacketTimestampInfo> m_ts_info;

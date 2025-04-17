@@ -3,6 +3,7 @@
 #include "src/filter/params.hh"
 #include "src/muxing/error.hh"
 #include "src/filter/filter.hh"
+#include "src/muxing/util.hh"
 #include "src/muxing.hh"
 
 extern "C" {
@@ -36,31 +37,42 @@ namespace vcat::muxing {
 			}
 		};
 
-		std::unique_ptr<filter::PacketSource> source;
+		std::unique_ptr<filter::PacketSource> vsource;
+		std::unique_ptr<filter::PacketSource> asource;
 
 		if(params.lossless) {
-			source = filter->get_pkts(ctx, filter::StreamType::Video, span);
+			vsource = filter->get_pkts(ctx, filter::StreamType::Video, span);
 		} else {
-			source = encode(ctx, span, *filter, filter::StreamType::Video);
+			vsource = encode(ctx, span, *filter, filter::StreamType::Video);
 		}
 
-		const AVCodecParameters *ivcodec = source->video_codec();
+		asource = encode(ctx, span, *filter, filter::StreamType::Audio);
+
+		const AVCodecParameters *ivcodec = vsource->video_codec();
+		const AVCodecParameters *iacodec = asource->video_codec();
 
 		AVFormatContext *output = nullptr;
 		error::handle_ffmpeg_error(
 			avformat_alloc_output_context2(&output, nullptr, nullptr, "output.mp4")
 		);
 
-		AVStream *ostream = avformat_new_stream(output, nullptr);
-		ostream->time_base = constants::TIMEBASE;
+		AVStream *ovstream = avformat_new_stream(output, nullptr);
+
+		AVStream *oastream = avformat_new_stream(output, nullptr);
 
 		error::handle_ffmpeg_error(
-			ostream ? 0 : AVERROR_UNKNOWN
+			ovstream && oastream ? 0 : AVERROR(ENOMEM)
 		);
 
 		error::handle_ffmpeg_error(
-			avcodec_parameters_copy(ostream->codecpar, ivcodec)
+			avcodec_parameters_copy(ovstream->codecpar, ivcodec)
 		);
+		error::handle_ffmpeg_error(
+			avcodec_parameters_copy(oastream->codecpar, iacodec)
+		);
+
+		ovstream->time_base = constants::TIMEBASE;
+		oastream->time_base = AVRational {1, ctx.aparams.sample_rate}; // Many audio players require the time base to be one sample
 
 		if(!(output->flags & AVFMT_NOFILE)) {
 			error::handle_ffmpeg_error(
@@ -72,19 +84,17 @@ namespace vcat::muxing {
 			avformat_write_header(output, nullptr)
 		);
 
-		AVPacket *packet = av_packet_alloc();
-		error::handle_ffmpeg_error(
-			packet ? 0 : AVERROR_UNKNOWN
-		);
+		PacketInterleaver interleaver(std::move(vsource), std::move(asource));
+		AVPacket *packet = nullptr;
 
-		while(source->next_pkt(&packet)) {
+		while(interleaver.next(&packet)) {
 			AVStream *ostream = output->streams[packet->stream_index];
 
 			packet->pos = -1;
-			av_packet_rescale_ts(packet, ostream->time_base, constants::TIMEBASE);
+			av_packet_rescale_ts(packet, constants::TIMEBASE, ostream->time_base);
 
 			error::handle_ffmpeg_error(
-				av_interleaved_write_frame(output, packet)
+				av_write_frame(output, packet)
 			);
 
 			av_packet_unref(packet);
