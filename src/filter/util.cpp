@@ -25,13 +25,14 @@ extern "C" {
 	#include <libavfilter/buffersink.h>
 	#include <libavformat/avformat.h>
 	#include <libavformat/avio.h>
+	#include <libavutil/avstring.h>
 	#include <libavutil/avutil.h>
 	#include <libavutil/channel_layout.h>
+	#include <libavutil/display.h>
 	#include <libavutil/error.h>
 	#include <libavutil/frame.h>
 	#include <libavutil/rational.h>
-	#include <libavutil/avstring.h>
-	}
+}
 
 namespace vcat::filter::util {
 	bool codecs_are_compatible(const AVCodecParameters *params1, const AVCodecParameters *params2) {
@@ -434,6 +435,17 @@ namespace vcat::filter::util {
 		, sar(params->sample_aspect_ratio)
 	{
 		assert(params->codec_type == AVMEDIA_TYPE_VIDEO);
+
+		for(int i = 0; i < params->nb_coded_side_data; i++) {
+			if(params->coded_side_data[i].type != AV_PKT_DATA_DISPLAYMATRIX) {
+				continue;
+			}
+
+			typedef int32_t DisplayMatrix[9];
+
+			const DisplayMatrix *display_matrix = (DisplayMatrix *) params->coded_side_data[i].data;
+			this->rotation_degrees = -av_display_rotation_get(*display_matrix);
+		}
 	}
 
 	AFrameInfo::AFrameInfo(const AVCodecParameters *params, Span s)

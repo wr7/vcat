@@ -1,0 +1,6 @@
+*
+
+!.gitignore
+!vcat_cli/
+!vcat_cli/**
+!vcat_cli.wrap

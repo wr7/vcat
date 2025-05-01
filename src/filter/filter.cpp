@@ -18,6 +18,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <numbers>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -72,14 +73,30 @@ namespace vcat::filter {
 					"primaries={}:"
 					"range={}:"
 					"format={}"
-				","
-				"scale={}:{}:force_original_aspect_ratio=decrease,"
-				"pad={}:{}:-1:-1",
+				",",
 				static_cast<int>(constants::COLOR_SPACE),
 				static_cast<int>(constants::COLOR_TRANSFER_FUNCTION),
 				static_cast<int>(constants::COLOR_PRIMARIES),
 				static_cast<int>(constants::COLOR_RANGE),
-				static_cast<int>(constants::PIXEL_FORMAT),
+				static_cast<int>(constants::PIXEL_FORMAT)
+		);
+
+		if(info.rotation_degrees != 0.0) {
+			double rotation_radians = info.rotation_degrees / 180.0 * std::numbers::pi;
+			filter_string += std::format(
+				"rotate="
+					"a={0}:"
+					"out_w=rotw({0}):"
+					"out_h=roth({0})"
+				",",
+
+				rotation_radians
+			);
+		}
+
+		filter_string += std::format(
+				"scale={}:{}:force_original_aspect_ratio=decrease,"
+				"pad={}:{}:-1:-1",
 				output.width,
 				output.height,
 				output.width,
@@ -238,9 +255,6 @@ namespace vcat::filter {
 
 		(*p_frame)->pts      = av_rescale_q(m_sample_idx * constants::SAMPLES_PER_FRAME, {1, static_cast<int>(m_sample_rate)}, constants::TIMEBASE);
 		(*p_frame)->duration = av_rescale_q((*p_frame)->nb_samples,                      {1, static_cast<int>(m_sample_rate)}, constants::TIMEBASE);
-
-		std::cerr << "pts: " << (*p_frame)->pts << "\n";
-		std::cerr << "duration: " << (*p_frame)->duration << "\n";
 
 		return true;
 	}

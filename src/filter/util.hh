@@ -33,6 +33,12 @@ namespace vcat::filter::util {
 		AVColorPrimaries              color_primaries;
 		AVColorTransferCharacteristic color_trc;
 		AVRational                    sar;
+
+		// Indicates how the video must be rotated when rendered.
+		//
+		// Many phones will record all videos in landscape mode but will include a special tag for
+		// portrait mode which will cause video players to play the video in the correct rotation).
+		double                        rotation_degrees;
 	};
 
 	struct AFrameInfo {
