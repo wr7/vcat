@@ -155,15 +155,7 @@ namespace vcat::filter {
 		return std::make_unique<FFMpegFilter>(span, std::move(sources), filter_string.c_str(), std::span(&s_info, 1), StreamType::Video);
 	}
 
-	Resampler::Resampler(Span span, std::unique_ptr<FrameSource>&& src, const util::AFrameInfo& info, const AudioParameters& output, std::optional<int64_t> out_duration)
-	: m_span(span)
-	, m_src(std::move(src))
-	, m_input(nullptr)
-	, m_output(nullptr)
-	, m_filter_graph(nullptr)
-	, m_sample_idx(std::numeric_limits<size_t>::max())
-	, m_sample_rate(output.sample_rate)
-	{
+	std::unique_ptr<FrameSource> resample(Span span, std::unique_ptr<FrameSource>&& src, const util::AFrameInfo& info, const AudioParameters& output, std::optional<int64_t> out_duration) {
 		AVSampleFormat out_sample_format = util::SampleFormat_get_AVSampleFormat(output.sample_format);
 		bool do_resample = 
 			info.sample_rate    != output.sample_rate ||
@@ -171,6 +163,10 @@ namespace vcat::filter {
 			info.channel_layout != output.channel_layout;
 
 		std::string filter_string;
+
+		if(!(out_duration || do_resample)) {
+			return std::move(src);
+		}
 
 		if(out_duration && do_resample) {
 			// Do a quick & dirty trim first so that we don't have to resample as much audio
@@ -207,53 +203,16 @@ namespace vcat::filter {
 			);
 		}
 
-		if(!out_duration && !do_resample) {
-			filter_string = "anull";
-		}
-
 		if(filter_string.ends_with(',')) {
 			filter_string.pop_back();
 		}
 
 		const util::SFrameInfo s_info{info};
 
-		util::FilterGraphInfo graph_info = util::create_filtergraph(m_span, filter_string.c_str(), std::span(&s_info, 1), StreamType::Audio);
+		std::vector<std::unique_ptr<FrameSource>> sources;
+		sources.push_back(std::move(src));
 
-		m_filter_graph = graph_info.graph;
-		m_input = graph_info.inputs[0];
-		m_output = graph_info.output;
-	}
-
-	bool Resampler::next_frame(AVFrame **p_frame) {
-		m_sample_idx++;
-
-		int res;
-		while((res = av_buffersink_get_frame(m_output, *p_frame)) == AVERROR(EAGAIN)) {
-			if(m_src->next_frame(p_frame)) {
-				error::handle_ffmpeg_error(m_span,
-					av_buffersrc_add_frame(m_input, *p_frame)
-				);
-			} else {
-				error::handle_ffmpeg_error(m_span,
-					av_buffersrc_add_frame(m_input, nullptr)
-				);
-			}
-		}
-
-		if(res == AVERROR_EOF) {
-			return false;
-		}
-
-		error::handle_ffmpeg_error(m_span, res);
-
-		(*p_frame)->pts      = av_rescale_q(m_sample_idx * constants::SAMPLES_PER_FRAME, {1, static_cast<int>(m_sample_rate)}, constants::TIMEBASE);
-		(*p_frame)->duration = av_rescale_q((*p_frame)->nb_samples,                      {1, static_cast<int>(m_sample_rate)}, constants::TIMEBASE);
-
-		return true;
-	}
-
-	Resampler::~Resampler() {
-		avfilter_graph_free(&m_filter_graph);
+		return std::make_unique<FFMpegFilter>(span, std::move(sources), filter_string.c_str(), std::span(&s_info, 1), StreamType::Audio);
 	}
 
 	Decode::Decode(Span s, std::unique_ptr<PacketSource>&& packet_src)

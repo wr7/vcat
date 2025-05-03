@@ -265,7 +265,7 @@ namespace vcat::filter {
 				ctx.vparams
 			);
 		} else {
-			return std::make_unique<Resampler>(
+			return resample(
 				span,
 				std::move(decoded),
 				util::AFrameInfo(codec_params, span),
