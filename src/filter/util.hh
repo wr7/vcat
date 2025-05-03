@@ -24,6 +24,7 @@ namespace vcat::filter::util {
 
 	struct VFrameInfo {
 		VFrameInfo(const AVCodecParameters*);
+		VFrameInfo(const VideoParameters&);
 
 		int                           width;
 		int                           height;
@@ -43,6 +44,7 @@ namespace vcat::filter::util {
 
 	struct AFrameInfo {
 		AFrameInfo(const AVCodecParameters*, Span);
+		AFrameInfo(const AudioParameters&);
 
 		int            sample_rate;
 		AVSampleFormat sample_fmt;

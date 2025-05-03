@@ -433,6 +433,7 @@ namespace vcat::filter::util {
 		, color_primaries(params->color_primaries)
 		, color_trc(params->color_trc)
 		, sar(params->sample_aspect_ratio)
+		, rotation_degrees(0.0)
 	{
 		assert(params->codec_type == AVMEDIA_TYPE_VIDEO);
 
@@ -445,8 +446,21 @@ namespace vcat::filter::util {
 
 			const DisplayMatrix *display_matrix = (DisplayMatrix *) params->coded_side_data[i].data;
 			this->rotation_degrees = -av_display_rotation_get(*display_matrix);
+			break;
 		}
 	}
+
+	VFrameInfo::VFrameInfo(const VideoParameters& params)
+		: width(params.width)
+		, height(params.height)
+		, pix_fmt(constants::PIXEL_FORMAT)
+		, color_space(constants::COLOR_SPACE)
+		, color_range(constants::COLOR_RANGE)
+		, color_primaries(constants::COLOR_PRIMARIES)
+		, color_trc(constants::COLOR_TRANSFER_FUNCTION)
+		, sar(constants::SAMPLE_ASPECT_RATIO)
+		, rotation_degrees(0.0)
+	{}
 
 	AFrameInfo::AFrameInfo(const AVCodecParameters *params, Span s)
 		: sample_rate(params->sample_rate)
@@ -469,6 +483,15 @@ namespace vcat::filter::util {
 
 		throw error::unimplemented_channel_order(s);
 	}
+		// int            sample_rate;
+		// AVSampleFormat sample_fmt;
+		// uint64_t       channel_layout; // From AV_CH_LAYOUT_* macros in libavutil/channel_layout.h
+
+	AFrameInfo::AFrameInfo(const AudioParameters& params)
+		: sample_rate(params.sample_rate)
+		, sample_fmt(SampleFormat_get_AVSampleFormat(params.sample_format))
+		, channel_layout(params.channel_layout)
+	{}
 
 	const AVFilter *get_avfilter(const char *name, Span s) {
 		const AVFilter *filter = avfilter_get_by_name(name);

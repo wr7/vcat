@@ -43,6 +43,55 @@ extern "C" {
 }
 
 namespace vcat::filter {
+	FFMpegFilter::FFMpegFilter(Span span, std::vector<std::unique_ptr<FrameSource>>&& src, const char *filter, std::span<const util::SFrameInfo> input_info, StreamType output_type)
+		: m_span(span)
+		, m_src(std::move(src))
+		, m_filter_graph(nullptr)
+		, m_output(nullptr)
+	{
+		util::FilterGraphInfo graph_info = util::create_filtergraph(span, filter, input_info, output_type);
+
+		m_filter_graph = graph_info.graph;
+		m_inputs = std::move(graph_info.inputs);
+		m_output = std::move(graph_info.output);
+	}
+
+	bool FFMpegFilter::next_frame(AVFrame **p_frame) {
+		int res;
+		while((res = av_buffersink_get_frame(m_output, *p_frame)) == AVERROR(EAGAIN)) {
+			for(size_t i = 0; i < m_src.size(); i++) {
+				if(m_src[i]->next_frame(p_frame)) {
+					error::handle_ffmpeg_error(m_span,
+						av_buffersrc_add_frame(m_inputs[i], *p_frame)
+					);
+				} else {
+					error::handle_ffmpeg_error(m_span,
+						av_buffersrc_add_frame(m_inputs[i], nullptr)
+					);
+				}
+			}
+		}
+
+		if(res == AVERROR_EOF) {
+			return false;
+		}
+
+		error::handle_ffmpeg_error(m_span, res);
+
+		AVRational output_timebase = av_buffersink_get_time_base(m_output);
+
+		AVFrame *const frame = *p_frame;
+
+		frame->pts      = av_rescale_q(frame->pts,      output_timebase, constants::TIMEBASE);
+		frame->duration = av_rescale_q(frame->duration, output_timebase, constants::TIMEBASE);
+
+		return true;
+	}
+
+	FFMpegFilter::~FFMpegFilter() {
+		avfilter_graph_free(&m_filter_graph);
+	}
+
 	Rescaler::Rescaler(Span span, std::unique_ptr<FrameSource>&& src, const util::VFrameInfo& info, const VideoParameters& output)
 	: m_span(span)
 	, m_src(std::move(src))

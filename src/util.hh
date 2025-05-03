@@ -8,11 +8,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
 #include <array>
 #include <utility>
+#include <vector>
 
 // 😭
 #if defined(__linux__) && !defined (__ANDROID__)
@@ -289,5 +291,36 @@ namespace vcat {
 	template<std::unsigned_integral A, std::integral B>
 	A shr(A a, B b) {
 		return a >> b;
+	}
+
+	struct collect_adapter {
+		struct closure {
+			template<std::ranges::range R>
+			constexpr auto operator()(R&& r) const
+			{
+				auto r_common = r | std::views::common;
+
+				return std::vector<std::ranges::range_value_t<R>>(r_common.begin(), r_common.end());
+			}
+		};
+
+		constexpr closure operator()() const {
+			return closure{};
+		}
+
+
+		template<std::ranges::range R>
+		constexpr auto operator()(R&& r) {
+			return closure{}(r);
+		}
+	};
+
+	/// Collects a range into an std::vector
+	inline collect_adapter collect;
+
+	template<std::ranges::range R>
+	constexpr auto operator|(R&& r, vcat::collect_adapter::closure const& a)
+	{
+		return a(std::forward<R>(r));
 	}
 }

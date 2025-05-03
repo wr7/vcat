@@ -4,8 +4,10 @@
 #include "src/eval/eobject.hh"
 #include "src/filter/params.hh"
 #include "src/filter/util.hh"
+#include "src/util.hh"
 #include <cstdint>
 #include <memory>
+#include <ranges>
 #include <vector>
 
 extern "C" {
@@ -113,6 +115,38 @@ namespace vcat::filter {
 			// NOTE: this should be called before the main AVFormatContext is created.
 			void calculate_info(FilterContext& ctx, StreamType, const std::string& path);
 	};
+
+	class FFMpegFilter : public FrameSource {
+		public:
+			FFMpegFilter() = delete;
+			FFMpegFilter(Span span, std::vector<std::unique_ptr<FrameSource>>&& src, const char *filter, std::span<const util::SFrameInfo> input_info, StreamType output_type);
+
+			inline FFMpegFilter(Span span, std::vector<std::unique_ptr<FrameSource>>&& src, const char *filter, const FilterContext& ctx, std::span<const StreamType> input_type, StreamType output_type)
+				: FFMpegFilter(
+					span,
+					std::move(src),
+					filter,
+					input_type
+						| std::ranges::views::transform([&](const StreamType& ty) {
+							return ty == StreamType::Video ? util::SFrameInfo(ctx.vparams) : util::SFrameInfo(ctx.aparams);
+						})
+						| vcat::collect(),
+					output_type
+				) {}
+
+			~FFMpegFilter();
+
+			bool next_frame(AVFrame **frame);
+		private:
+			Span                                      m_span;
+			std::vector<std::unique_ptr<FrameSource>> m_src;
+
+			AVFilterGraph                            *m_filter_graph;
+			std::vector<AVFilterContext *>            m_inputs;
+			AVFilterContext                          *m_output;
+	};
+
+	static_assert(!std::is_abstract<FFMpegFilter>());
 
 	class Decode : public FrameSource {
 		public:
