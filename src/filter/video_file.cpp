@@ -258,7 +258,7 @@ namespace vcat::filter {
 		auto decoded = std::make_unique<Decode>(span, std::move(file));
 
 		if(type == StreamType::Video) {
-			return std::make_unique<Rescaler>(
+			return rescale(
 				span,
 				std::move(decoded),
 				codec_params,
