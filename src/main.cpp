@@ -19,7 +19,6 @@ using vcat::parser::Expression;
 
 // TODO:
 // - Lambdas
-// - Fix audio concatenation
 // - Fix transcoded packet duration
 // - Ensure that audio and video streams are the same length after coming out of the `vopen` filter
 

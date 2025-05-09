@@ -1,4 +1,5 @@
 #include "src/filter/filter.hh"
+#include "libavutil/pixfmt.h"
 #include "src/constants.hh"
 #include "src/error.hh"
 #include "src/filter/error.hh"
@@ -232,6 +233,23 @@ namespace vcat::filter {
 				return false;
 			} else if(res != AVERROR(EAGAIN)) {
 				error::handle_ffmpeg_error(m_span, res);
+
+				if((*frame)->colorspace == AVCOL_SPC_UNSPECIFIED) {
+					(*frame)->colorspace = constants::FALLBACK_COLOR_SPACE;
+				}
+
+				if((*frame)->color_primaries == AVCOL_PRI_UNSPECIFIED) {
+					(*frame)->color_primaries = constants::FALLBACK_COLOR_PRIMARIES;
+				}
+
+				if((*frame)->color_trc == AVCOL_TRC_UNSPECIFIED) {
+					(*frame)->color_trc = constants::FALLBACK_COLOR_TRANSFER_FUNCTION;
+				}
+
+				if((*frame)->color_range == AVCOL_RANGE_UNSPECIFIED) {
+					(*frame)->color_range = constants::FALLBACK_COLOR_RANGE;
+				}
+
 				return true;
 			}
 

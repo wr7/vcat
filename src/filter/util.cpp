@@ -437,6 +437,23 @@ namespace vcat::filter::util {
 	{
 		assert(params->codec_type == AVMEDIA_TYPE_VIDEO);
 
+		if(color_space == AVCOL_SPC_UNSPECIFIED) {
+			color_space = constants::FALLBACK_COLOR_SPACE;
+		}
+
+		if(color_primaries == AVCOL_PRI_UNSPECIFIED) {
+			color_primaries = constants::FALLBACK_COLOR_PRIMARIES;
+		}
+
+		if(color_trc == AVCOL_TRC_UNSPECIFIED) {
+			color_trc = constants::FALLBACK_COLOR_TRANSFER_FUNCTION;
+		}
+
+		if(color_range == AVCOL_RANGE_UNSPECIFIED) {
+			color_range = constants::FALLBACK_COLOR_RANGE;
+		}
+
+
 		for(int i = 0; i < params->nb_coded_side_data; i++) {
 			if(params->coded_side_data[i].type != AV_PKT_DATA_DISPLAYMATRIX) {
 				continue;

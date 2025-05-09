@@ -7,14 +7,18 @@
 #include <optional>
 
 #include "src/filter/video_file.hh"
-#include "libavcodec/packet.h"
-#include "libavutil/avutil.h"
-#include "libavutil/rational.h"
 #include "src/constants.hh"
 #include "src/filter/error.hh"
 #include "src/filter/filter.hh"
 #include "src/filter/util.hh"
 #include "src/util.hh"
+
+extern "C" {
+	#include <libavcodec/packet.h>
+	#include <libavutil/avutil.h>
+	#include <libavutil/pixdesc.h>
+	#include <libavutil/rational.h>
+}
 
 namespace vcat::filter {
 	void VideoFile::hash(Hasher& hasher) const {

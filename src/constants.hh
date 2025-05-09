@@ -11,10 +11,18 @@ namespace vcat::constants {
 	constexpr int64_t FALLBACK_FRAME_RATE = constants::TIMEBASE.den / (constants::TIMEBASE.num * 60); // 60Hz
 	constexpr AVRational SAMPLE_ASPECT_RATIO = {1, 1};
 	constexpr AVPixelFormat PIXEL_FORMAT = AV_PIX_FMT_YUV420P;
-	constexpr AVColorSpace COLOR_SPACE = AVCOL_SPC_BT709;
-	constexpr AVColorPrimaries COLOR_PRIMARIES = AVCOL_PRI_BT709;
-	constexpr AVColorRange COLOR_RANGE = AVCOL_RANGE_MPEG;
+
+	constexpr AVColorSpace                  COLOR_SPACE             = AVCOL_SPC_BT709;
+	constexpr AVColorPrimaries              COLOR_PRIMARIES         = AVCOL_PRI_BT709;
 	constexpr AVColorTransferCharacteristic COLOR_TRANSFER_FUNCTION = AVCOL_TRC_BT709;
+	constexpr AVColorRange                  COLOR_RANGE             = AVCOL_RANGE_MPEG;
+
 	constexpr uint64_t CHANNEL_LAYOUT = AV_CH_LAYOUT_STEREO;
 	constexpr size_t SAMPLES_PER_FRAME = 1024;
+
+	// If no color information is included in a file, it is assumed to use these parameters
+	constexpr AVColorSpace                  FALLBACK_COLOR_SPACE             = AVCOL_SPC_BT709;
+	constexpr AVColorPrimaries              FALLBACK_COLOR_PRIMARIES         = AVCOL_PRI_BT709;
+	constexpr AVColorTransferCharacteristic FALLBACK_COLOR_TRANSFER_FUNCTION = AVCOL_TRC_BT709;
+	constexpr AVColorRange                  FALLBACK_COLOR_RANGE             = AVCOL_RANGE_MPEG;
 }
