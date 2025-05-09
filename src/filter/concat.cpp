@@ -1,3 +1,5 @@
+#include <format>
+#include <iostream>
 #include <sstream>
 
 #include "src/filter/concat.hh"
@@ -50,53 +52,34 @@ namespace vcat::filter {
 		return "Concat";
 	}
 
-	class ConcatFrameSource : public FrameSource {
-		public:
-			ConcatFrameSource() = delete;
-			ConcatFrameSource(FilterContext& fctx, StreamType type, std::span<const Spanned<const VFilter&>> videos)
-				: m_idx(0)
-				, m_last_pts(0)
-				, m_last_dur(0)
-				, m_pts_offset(0)
-			{
-				for(const auto& video : videos) {
-					m_videos.push_back(video->get_frames(fctx, type, video.span));
-				}
-			}
+	std::unique_ptr<FrameSource> Concat::get_frames(FilterContext& fctx, StreamType type, Span span) const {
+		std::vector<std::unique_ptr<FrameSource>> videos;
 
-			bool next_frame(AVFrame **p_frame) {
-				if(m_idx >= m_videos.size()) {
-					return false;
-				}
+		for(const auto& video : m_videos) {
+			videos.push_back(video.val.get_frames(fctx, type, video.span));
+		}
 
-				AVFrame *frame = *p_frame;
+		if(videos.size() == 1) {
+			return std::move(videos[0]);
+		}
 
-				if(!m_videos[m_idx]->next_frame(p_frame)) {
-					m_idx += 1;
-					m_pts_offset = m_last_pts + m_last_dur;
-					return this->next_frame(p_frame);
-				}
+		std::string filter;
 
-				frame->pts += m_pts_offset;
+		for(size_t i = 0; i < videos.size(); i++) {
+			filter += std::format("[in_{}] ", i);
+		}
 
-				assert(frame->duration != 0);
-				m_last_dur = frame->duration;
+		filter += std::format("concat=n={}", videos.size());
 
-				m_last_pts = frame->pts;
+		if(type == StreamType::Audio) {
+			filter += ":v=0:a=1";
+		}
 
-				return true;
-			}
+		filter += " [out]";
 
-		private:
-			size_t  m_idx;
-			int64_t m_last_pts;
-			int64_t m_last_dur;
-			int64_t m_pts_offset;
-			std::vector<std::unique_ptr<FrameSource>> m_videos;
-	};
+		std::vector<StreamType> input_types{videos.size(), type};
 
-	std::unique_ptr<FrameSource> Concat::get_frames(FilterContext& fctx, StreamType type, Span) const {
-		return std::make_unique<ConcatFrameSource>(fctx, type, m_videos);
+		return std::make_unique<FFMpegFilter>(span, std::move(videos), filter.c_str(), fctx, input_types, type);
 	}
 
 	class ConcatPktSource : public PacketSource {
@@ -106,8 +89,8 @@ namespace vcat::filter {
 			ConcatPktSource(std::span<const Spanned<const VFilter&>> videos, FilterContext& ctx,StreamType type, Span)
 				: m_pkt_idx(static_cast<size_t>(0) - 1)
 				, m_idx(0)
-				
 			{
+				assert(type == StreamType::Video);
 
 				const AVCodecParameters *prev_param = nullptr;
 

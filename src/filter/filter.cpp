@@ -49,6 +49,7 @@ namespace vcat::filter {
 		, m_filter_graph(nullptr)
 		, m_output(nullptr)
 	{
+		assert(m_src.size() == input_info.size());
 		util::FilterGraphInfo graph_info = util::create_filtergraph(span, filter, input_info, output_type);
 
 		m_filter_graph = graph_info.graph;
